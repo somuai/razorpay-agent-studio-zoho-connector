@@ -4,8 +4,8 @@ This checklist records commands actually run in this workspace. A green offline 
 
 ## Quality gates
 
-- [x] `make lint` — `ruff check .`: all checks passed; `ruff format --check .`: 77 files already formatted.
-- [x] `make typecheck` — mypy: success, no issues in 28 source files.
+- [x] `make lint` — `ruff check .`: all checks passed; `ruff format --check .`: 78 files already formatted.
+- [x] `make typecheck` — mypy: success, no issues in 29 source files.
 - [x] `make test` — 86 passed; total source coverage 89.44% (threshold 85%).
 - [x] `make spec` — generated and verified `mcp/tool_spec.json`; 8 registered tools.
 - [x] `make eval` twice — all three JSON outputs compared byte-for-byte and were identical. The report is labeled **SIMULATED**. Latest summary: 54/200 baseline out-of-stock nudges (27%) vs 0/200 connector-aware; 18/40 evidence-complete; 0.15 cart calls/decision; 87.85% cache hits.
@@ -36,7 +36,7 @@ This checklist records commands actually run in this workspace. A green offline 
 | FR-14 separate, explicit fictional-data seed helper | `scripts/seed_zoho.py --dry-run`; live writes unverified and not run |
 | FR-15 separate PII-minimized audit event | `tests/test_audit.py` |
 | NFR-8 stdio stdout hygiene | `tests/test_stdio_hygiene.py` |
-| NFR-9 clean clone / README quickstart | `make clean-clone-test` pending commit |
+| NFR-9 clean clone / README quickstart | `make clean-clone-test` passed against committed HEAD |
 
 ## Documentation inventory (FR-12)
 
