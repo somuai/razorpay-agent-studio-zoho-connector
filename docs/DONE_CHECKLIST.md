@@ -13,7 +13,7 @@ This checklist records commands actually run in this workspace. A green offline 
 - [x] `make live-smoke` without credentials — skipped cleanly; required `ZOHO_*` credentials are not configured.
 - [x] `python scripts/seed_zoho.py --dry-run` — reported 10 fictional items, 8 orders, 4 packages, up to 2 shipments; no credentials or network used.
 - [x] `make check-secrets` — secrets audit clean. Obvious mock/example placeholders are excluded from the secret-like literal match.
-- [ ] `make clean-clone-test` — pending final commit; this target clones `HEAD`, so run after committing the candidate.
+- [x] `make clean-clone-test` — passed against the committed checkout: `README placeholder check passed.`, fresh clone setup installed 47 packages, `make eval` reported `Mode: SIMULATED`, offline stdio demo completed with 5 tool events / 3 retries / 1 throttled call, spec generated and verified, and `clean-clone-test passed successfully.`
 - [ ] Live Zoho verification and author-captured screenshots — pending external org credentials and author confirmation. Do not substitute mock output.
 
 ## Requirement evidence map
@@ -57,7 +57,5 @@ This checklist records commands actually run in this workspace. A green offline 
 
 ## Before claiming complete
 
-1. Commit the candidate, then run `make clean-clone-test` and record its result above.
-2. Finish the read-only adversarial review and fix any actionable findings.
-3. Keep live status as “not yet verified” until an author-confirmed real-org run exists.
-4. Final report must state what was built, three run commands, test/eval results, live-unverified facts, top limitations, and the first merchant discovery questions.
+1. Keep live status as “not yet verified” until an author-confirmed real-org run exists.
+2. Final report must state what was built, three run commands, test/eval results, live-unverified facts, top limitations, and the first merchant discovery questions.
