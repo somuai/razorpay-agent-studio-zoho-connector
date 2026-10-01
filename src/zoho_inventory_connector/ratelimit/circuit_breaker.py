@@ -50,12 +50,12 @@ class CircuitBreaker:
                 )
             raise CircuitOpenError(cooldown_remaining=cooldown_left)
 
-    def trip(self, custom_cooldown: float | None = None) -> None:
+    def trip(self, cooldown_seconds: float | None = None) -> None:
         """Trip circuit breaker into OPEN state."""
         self.state = CircuitState.OPEN
         self.opened_at = self.clock.monotonic()
-        if custom_cooldown is not None and custom_cooldown > 0:
-            self.cooldown_seconds = custom_cooldown
+        if cooldown_seconds is not None and cooldown_seconds > 0:
+            self.cooldown_seconds = cooldown_seconds
 
     def record_success(self) -> None:
         """Record a successful response, resetting circuit to CLOSED."""

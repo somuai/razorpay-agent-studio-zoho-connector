@@ -158,10 +158,10 @@ def _check_faults_and_auth(authorization: str | None) -> JSONResponse | None:
         )
 
     token = authorization.split(" ", 1)[1]
-    if token != MOCK_ACCESS_TOKEN and "valid" not in token:
+    if token != MOCK_ACCESS_TOKEN and not token.startswith("valid_"):
         return JSONResponse(
             status_code=401,
-            content={"code": 57, "message": "OAuth token is invalid."},
+            content={"code": 57, "message": "OAuth token is invalid or expired."},
         )
 
     return None
