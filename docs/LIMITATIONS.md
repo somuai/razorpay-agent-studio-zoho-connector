@@ -1,0 +1,20 @@
+# Limitations and production fixes
+
+Mocks and simulations do not establish live Zoho compatibility or merchant impact.
+
+| Limitation | Why it matters | Production-grade fix / evidence needed |
+|---|---|---|
+| No live Zoho run is confirmed. | OAuth, scopes, endpoint response shapes and organization permissions remain unproven against an org. | Run `make live-smoke` against an isolated org; update live status only after the author confirms and provides their own masked evidence. |
+| The seed helper's request shapes and lookup behavior include official-doc ambiguities. | A specific org may reject a create payload or a timeout could leave a created record whose response was lost. | Keep separate write credentials/scopes, explicit write acknowledgement, deterministic fixture identifiers, and persist returned IDs; verify on a disposable org only. |
+| Zoho does not document a delivered-at timestamp in the Shipment Orders schema reviewed. | A `Delivered` status may have no date and is not independent carrier proof. | Leave delivery timestamp unavailable unless a documented field/custom integration is verified; add carrier data only after merchant discovery. |
+| Zoho's per-location availability fields do not define the merchant's sellability or allocation policy. | A unit in another location may not fulfill a checkout, and physical stock may include committed units. | Return `unknown` without a safe explicit availability quantity; validate reservations, safety stock and location routing before an agent acts on the result. |
+| Payment-to-order matching depends on the merchant storing a unique Razorpay identifier in Zoho. | A missing or reused `reference_number` can produce no match or the wrong order. | Confirm the stored identifier and uniqueness, compare exact values after search, return `match_basis`, and require human confirmation for ambiguous matches. |
+| Email-to-order lookup depends on a supported contact lookup and correct contact linkage. | Contacts can be shared or outdated; email is PII. | Resolve through Zoho contacts, match exact email locally, query orders by returned contact ID, mask output, and audit without storing the full address. |
+| Cache and limiter are in-process. | Multiple replicas can collectively exceed organization quota, and cached reads may be stale. | Measure total org usage and add shared coordination only if production deployment is multi-process; set freshness budgets with the merchant. |
+| `complete` evidence means this connector's fields were present. | It does not establish admissibility, persuasive value, dispute liability, or win probability. | Map evidence requirements by dispute reason and network, retain human review, and never automate submission through this connector. |
+| `include_pii` is opt-in on order tools. | An agent may not need full contact data, and surrounding systems have separate logging/retention paths. | Keep it false by default, limit access, and verify end-to-end telemetry, audit retention and model data handling before deployment. |
+| Evaluation output is deterministic simulation on fictional seed-42 data. | It does not prove conversion uplift, real discount savings, dispute outcomes, or runtime latency. | Run a merchant-approved shadow period and controlled pilot with baseline, confounders, outcome fields and stop rules defined in `MEASUREMENT.md`. |
+| The connector is single-organization and single-process. | It is not ready for merchant tenancy, credential isolation, or coordinated quotas. | Add per-tenant credential lifecycle, isolation, shared limiter/cache, operational monitoring and security review before multi-tenant use. |
+| No Agent Studio runtime integration is included. | Public information does not specify private connector registration or credential routing. | Confirm the internal integration contract with an authorized owner; keep this repo's claim to MCP compatibility. |
+
+Until an authorized live run and merchant-specific stock/matching rules are validated, use the connector as a mock-backed integration prototype and treat every evaluation result as **SIMULATED**.

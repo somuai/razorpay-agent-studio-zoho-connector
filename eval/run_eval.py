@@ -98,6 +98,17 @@ async def main() -> None:
             "M3_zoho_free_tier_quota_consumed_pct": nudge_results["efficiency_and_cost"][
                 "zoho_free_tier_quota_consumed_pct"
             ],
+            "M3_total_calls_both_sims": nudge_results["efficiency_and_cost"]["api_calls_made"]
+            + dispute_results["ops_impact"]["upstream_api_calls"],
+            "M3_total_quota_both_sims_pct": round(
+                (
+                    nudge_results["efficiency_and_cost"]["api_calls_made"]
+                    + dispute_results["ops_impact"]["upstream_api_calls"]
+                )
+                / 1000.0
+                * 100,
+                2,
+            ),
         },
         "nudge_simulation": nudge_results,
         "dispute_evaluation": dispute_results,
@@ -133,6 +144,9 @@ async def main() -> None:
         f"| Nudges Sent | {base['nudges_sent']} | {conn['nudges_sent']} | -{conn['suppressed_nudges']} out-of-stock suppressed |"
     )
     print(
+        f"| Nudges to carts with no out-of-stock item | {base['correctly_nudged_count']} | {conn['correctly_nudged_count']} | Seeded availability only; low-stock treatment differs by policy |"
+    )
+    print(
         f"| Wasted Nudges (Sent for Unavailable SKUs) | {base['wasted_nudges_count']} ({base['wasted_nudges_pct']}%) | **{conn['wasted_nudges_count']} ({conn['wasted_nudges_pct']}%)** | **-{base['wasted_nudges_pct']}% (Eliminated)** |"
     )
     print(
@@ -149,13 +163,13 @@ async def main() -> None:
     print("| Evidence Classification | Cases | Pct (%) | Ops Workflow Action |")
     print("|---|:---:|:---:|---|")
     print(
-        f"| Complete Evidence (Order + Invoice + Tracking + Delivery) | {disp['complete_evidence_count']} | **{disp['complete_evidence_pct']}%** | Instant 1-click gateway rebuttal |"
+        f"| Complete Evidence (Order + Invoice + Tracking + Delivery) | {disp['complete_evidence_count']} | **{disp['complete_evidence_pct']}%** | Evidence bundle ready for ops review; connector does not submit rebuttals |"
     )
     print(
         f"| Partial Evidence (Missing tracking / delivery confirmation) | {disp['partial_evidence_count']} | **{disp['partial_evidence_pct']}%** | Ops triage with exact missing fields flagged |"
     )
     print(
-        f"| Unsupported / Not Found | {disp['no_evidence_count']} | {disp['no_evidence_pct']}% | Auto-flagged to prevent hopeless dispute penalties |"
+        f"| No Evidence | {disp['no_evidence_count']} | {disp['no_evidence_pct']}% | Manual review; no evidence is inferred |"
     )
 
     print("\nMissing Fields Breakdown in Partial Disputes:")
@@ -167,10 +181,19 @@ async def main() -> None:
     print(f"- Cache Hits (TTL 60s): {eff['cache_hits']} ({eff['cache_hit_pct']}%)")
     print(f"- Upstream API Calls per Nudge Decision: {eff['api_calls_per_decision']}")
     print(
+        f"- Deterministic virtual-clock p50/p95 tool latency: "
+        f"{eff['tool_latency_p50_ms_virtual_clock']}/{eff['tool_latency_p95_ms_virtual_clock']} ms "
+        "(not runtime latency)"
+    )
+    print(
         f"- Upstream API Calls per Dispute Case: {dispute_results['ops_impact']['api_calls_per_dispute_case']}"
     )
     print(
         f"- Daily Zoho Free-Tier Quota Consumed: {eff['zoho_free_tier_quota_consumed_pct']}% of 1,000 req/day limit"
+    )
+    print(
+        f"- Combined quota estimate for both separate simulations: "
+        f"{summary['metrics_summary']['M3_total_quota_both_sims_pct']}% of 1,000 requests/day"
     )
     print("\n" + "=" * 80)
     print("ALL RESULTS ARE SIMULATED. End of Evaluation Report.")

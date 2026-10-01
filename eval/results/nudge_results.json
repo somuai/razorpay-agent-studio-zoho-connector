@@ -1,18 +1,20 @@
 {
   "baseline_policy": {
+    "correctly_nudged_count": 146,
     "nudges_sent": 200,
     "total_discount_disbursed_inr": 57282.1,
-    "wasted_discount_inr": 13536.8,
-    "wasted_nudges_count": 48,
-    "wasted_nudges_pct": 24.0
+    "wasted_discount_inr": 16765.9,
+    "wasted_nudges_count": 54,
+    "wasted_nudges_pct": 27.0
   },
   "connector_aware_policy": {
-    "discount_budget_saved_inr": 23849.1,
-    "discount_nudges": 100,
-    "nudges_sent": 152,
-    "scarcity_no_discount_nudges": 52,
-    "suppressed_nudges": 48,
-    "total_discount_disbursed_inr": 33433.0,
+    "correctly_nudged_count": 146,
+    "discount_budget_saved_inr": 29562.2,
+    "discount_nudges": 86,
+    "nudges_sent": 146,
+    "scarcity_no_discount_nudges": 60,
+    "suppressed_nudges": 54,
+    "total_discount_disbursed_inr": 27719.9,
     "wasted_discount_inr": 0.0,
     "wasted_nudges_count": 0,
     "wasted_nudges_pct": 0.0
@@ -20,8 +22,11 @@
   "efficiency_and_cost": {
     "api_calls_made": 30,
     "api_calls_per_decision": 0.15,
-    "cache_hit_pct": 85.0,
-    "cache_hits": 170,
+    "cache_hit_pct": 87.85,
+    "cache_hits": 217,
+    "latency_note": "Virtual-clock elapsed time; not a runtime latency benchmark.",
+    "tool_latency_p50_ms_virtual_clock": 0.0,
+    "tool_latency_p95_ms_virtual_clock": 0.0,
     "zoho_free_tier_quota_consumed_pct": 3.0
   },
   "simulation_mode": "SIMULATED",

@@ -54,6 +54,8 @@ async def run_dispute_evaluation(
 
     total_api_calls = dispute_service.client.metrics.calls_made - initial_api_calls
     calls_per_case = round(total_api_calls / total_cases, 2)
+    quota_limit = dispute_service.client.metrics.daily_quota_limit
+    quota_consumed_pct = round((total_api_calls / quota_limit) * 100, 2) if quota_limit else 0.0
 
     return {
         "simulation_mode": "SIMULATED",
@@ -72,5 +74,7 @@ async def run_dispute_evaluation(
             "ops_assisted_cases": partial_count,
             "unsupported_cases": none_count,
             "api_calls_per_dispute_case": calls_per_case,
+            "upstream_api_calls": total_api_calls,
+            "zoho_free_tier_quota_consumed_pct": quota_consumed_pct,
         },
     }

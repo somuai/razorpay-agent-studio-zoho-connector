@@ -20,7 +20,9 @@
     "api_calls_per_dispute_case": 2.1,
     "auto_rebuttal_ready_cases": 18,
     "ops_assisted_cases": 22,
-    "unsupported_cases": 0
+    "unsupported_cases": 0,
+    "upstream_api_calls": 84,
+    "zoho_free_tier_quota_consumed_pct": 8.4
   },
   "simulation_mode": "SIMULATED",
   "total_dispute_cases": 40

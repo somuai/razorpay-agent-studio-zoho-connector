@@ -1,71 +1,30 @@
-# Measurement Framework & Impact Evaluation (FR-8, FR-10)
+# Measurement plan (FR-8, FR-10, FR-15)
 
-> **Notice:** All benchmark numbers, uplift percentages, and financial values presented in this document are **SIMULATED on fictional data** (`seed=42`) representing *Kaveri Home Goods*, a Bangalore D2C home decor merchant. Never construe these as production metrics.
+> **SIMULATED:** Every result in `eval/results/` and every number printed by `make eval` comes from fictional, deterministic fixtures (`seed=42`) for the fictional Kaveri Home Goods merchant. These results show policy behavior on seeded cases. They do not establish real merchant impact, conversion uplift, dispute win rate, or production latency.
 
----
+## Questions and metrics
 
-## 1. Executive Summary & Success Metrics
+The project tests two workflow hypotheses: stock checks can avoid sending recovery nudges for unavailable cart items, and a composed evidence lookup can make existing Zoho fulfillment evidence easier for dispute ops to assemble. It does not test whether customers convert more often or whether a submitted dispute is won.
 
-The Zoho Inventory Connector enables Razorpay Agent Studio agents to query merchant inventory and order data safely. We evaluate impact against two core merchant problems:
-1. **P1 (Abandoned Cart Conversion):** Blind cart nudges disburse discount codes for out-of-stock items, burning discount budget and alienating buyers.
-2. **P2 (Dispute Responder):** Chargeback rebuttals require manual assembly of shipping/delivery proof across multiple screens, resulting in missed dispute deadlines and lost revenue.
+| Metric | Definition in the simulation | Reported evidence |
+|---|---|---|
+| **M1: unavailable nudges** | For each policy, number of nudge actions sent for carts containing at least one seeded out-of-stock item divided by all 200 cart events. The connector-aware policy suppresses the whole cart if any item is out of stock; partial-cart recovery is out of scope. | Baseline and connector-aware counts and percentages; fictional INR discount given to unavailable carts. |
+| **M1: discount budget** | Baseline discount amount minus connector-aware discount amount. Also report baseline discount on unavailable carts separately. | The first is discount avoided, including discounts withheld for low-stock scarcity carts; it is **not** all waste. Only the second is discount directed to zero-stock carts in this fixture. |
+| **M2: evidence completeness** | Complete, partial, or none based strictly on fields present in the seeded Zoho-shaped fixtures, divided by 40 seeded disputes. `missing_fields` lists absent fields for each partial or none case. | Counts, percentages, and missing-field frequency. One composed evidence-tool response is evaluated per dispute; it makes multiple upstream API calls. No rebuttal is submitted and completeness does not mean the evidence will win a case. |
+| **M3: connector cost** | Upstream GET calls divided by cart decisions or dispute cases, plus cache lookup hit rate and upstream calls divided by the assumed free-plan daily limit of 1,000. | Nudge phase, dispute phase, and combined two-phase call/quota estimates. The 1,000-call cap is an assumption from the project brief and must be verified for a live org and plan. |
+| **Latency** | `make eval` records p50/p95 elapsed time from the injected virtual clock. The virtual clock does not advance for ordinary mock requests. | The reported 0 ms percentiles confirm deterministic virtual-clock elapsed time only; they are **not runtime latency benchmarks**. Use production `latency_ms` events for latency. |
 
-### Success Metrics Taxonomy
+Reproduce the simulation with `make eval`. The command writes `eval/results/nudge_results.json`, `eval/results/dispute_results.json`, and `eval/results/summary.json`. Each JSON result has `simulation_mode: SIMULATED`; the stdout report also labels the run SIMULATED. The eval deliberately keeps deterministic JSON separate from host-dependent wall-clock timings.
 
-| Metric | Name | Business Rationale | Simulation Target | Simulated Result (`seed=42`) |
-|---|---|---|---|---|
-| **M1** | **Wasted Nudges & Discount Liability** | % of cart recovery nudges sent for unavailable SKUs, and fictional INR discount budget wasted on zero-stock items. | Reduce out-of-stock waste to 0% | **0.0%** (vs 24.0% baseline); **₹13,536.80** zero-stock waste eliminated; **₹23,849.10** total budget saved |
-| **M2** | **Dispute Evidence Completeness** | % of chargebacks with complete fulfillment proof from a single tool call; strict enumeration of missing fields for partials. | > 40% complete; 0 unverified guesses | **45.0%** complete; **55.0%** partial with exact missing fields flagged; **0** guesses |
-| **M3** | **Agent Efficiency & Upstream Quota Cost** | API calls per decision, cache hit rate, and daily Zoho quota consumed (% of free-tier 1,000 req/day limit). | < 0.5 calls/decision; < 10% daily quota | **0.15** calls/cart decision; **85.0%** cache hit rate; **3.0%** of daily quota |
+## Reading the seeded result
 
----
+In the seeded run, a cart containing any out-of-stock item is suppressed as a whole, a cart with low-stock items receives a scarcity message and no discount, and a cart whose items are all in stock can receive its normal discount. Baseline sends a discount nudge for every cart. All generated cart events run at the same virtual-clock instant, so the cache hit rate is an optimistic within-TTL fixture result; it does not model event spacing or changing stock. These rules produce a policy comparison, not a forecast: the fixtures do not model buyer response, inventory movement during delivery, discount elasticity, or operational handling.
 
-## 2. Simulated Results Table
+For disputes, completeness is evidence availability in the mock data. `complete` means all fields required by the current evidence projection are present. It does not mean the evidence is admissible, persuasive, or sufficient under a payment network's rules. Missing-field counts can overlap because one case may lack several fields.
 
-The simulation was executed using `make eval` over 200 seeded cart events and 40 dispute cases.
+## Instrumentation contract
 
-### Metric 1: Abandoned Cart Nudge Optimization (N = 200 Carts)
-
-| Metric / Attribute | Baseline Policy (Unaware) | Connector-Aware Agent | Delta / Merchant Impact |
-|---|:---:|:---:|:---:|
-| **Nudges Sent** | 200 | 152 | 48 out-of-stock carts safely suppressed |
-| **Wasted Nudges (Sent for 0 Stock)** | 48 (24.0%) | **0 (0.0%)** | **-24.0% (Eliminated completely)** |
-| **Scarcity Nudges (No Discount Offered)** | 0 | 52 | Urgency driven by stock scarcity; 0% margin loss |
-| **Total Discount Disbursed** | ₹57,282.10 | ₹33,433.00 | **₹23,849.10 saved** |
-| **Wasted Discount on Zero Stock** | ₹13,536.80 | **₹0.00** | **100% budget liability eliminated** |
-
-### Metric 2: Chargeback Dispute Evidence Completeness (N = 40 Cases)
-
-| Evidence Classification | Cases | Pct (%) | Automated Ops Workflow Action |
-|---|:---:|:---:|---|
-| **Complete Evidence** (Order + Invoice + Tracking + Delivery) | 18 | **45.0%** | Instant 1-click gateway rebuttal submission |
-| **Partial Evidence** (Missing tracking or delivery timestamp) | 22 | **55.0%** | Flagged for manual merchant ops triage with exact missing fields |
-| **Unsupported / Not Found** | 0 | 0.0% | Auto-flagged to prevent hopeless dispute penalties |
-
-#### Missing Fields Breakdown in Partial Disputes:
-- `package`: Missing in 18 cases (Order confirmed but packaging slip not generated in Zoho).
-- `carrier`: Missing in 18 cases (Shipment order not assigned to courier partner).
-- `tracking_number`: Missing in 22 cases (Courier assigned or pending tracking number upload).
-- `shipment_date`: Missing in 18 cases.
-- `delivery_date`: Missing in 22 cases (In-transit or courier delivery sync pending).
-- `delivery_status`: Missing in 18 cases.
-- `invoice`: Missing in 8 cases (Draft or un-invoiced orders).
-
-### Metric 3: Agent Cost & Quota Efficiency
-
-- **Total Upstream API Calls (Nudge Sim):** 30 (for 200 cart evaluations)
-- **Cache Hits (TTL 60s):** 170 (**85.0% hit rate**)
-- **API Calls per Decision:** **0.15** calls/cart decision
-- **API Calls per Dispute Case:** **2.1** calls/case
-- **Daily Zoho Free-Tier Quota Consumed:** **3.0%** of 1,000 requests/day cap
-
----
-
-## 3. Event Instrumentation Schema (FR-8, FR-15)
-
-Every tool invocation emits structured JSON events to `stderr` (preserving `stdout` for clean MCP JSON-RPC protocol frames). The eval harness computes the exact metrics above by parsing these logs.
-
-### A. Tool Execution Event Schema (`tool_execution`)
+The production event stream has one `tool_execution` JSON event per tool call. The application event contains no customer PII, access tokens, authorization headers, or secret-bearing URLs:
 
 ```json
 {
@@ -73,8 +32,8 @@ Every tool invocation emits structured JSON events to `stderr` (preserving `stdo
   "event": "tool_execution",
   "tool": "get_stock_availability",
   "status": "success",
-  "latency_ms": 1.25,
-  "cache_hit": true,
+  "latency_ms": 12.5,
+  "cache_hit": false,
   "throttled": false,
   "retries": 0,
   "http_status": 200,
@@ -82,75 +41,64 @@ Every tool invocation emits structured JSON events to `stderr` (preserving `stdo
   "stock_status": "in_stock",
   "result_count": 1,
   "truncated": false,
-  "request_id": "req_8a9f20bc12d4"
+  "request_id": "req_example_only"
 }
 ```
 
-#### Fields Description:
-- `ts`: ISO 8601 UTC timestamp.
-- `event`: Event discriminator (`tool_execution`).
-- `tool`: Invoked MCP tool name.
-- `status`: Execution outcome (`success` or `error`).
-- `latency_ms`: Duration of the tool execution in milliseconds.
-- `cache_hit`: Boolean indicating if response was served from in-memory TTL cache.
-- `throttled`: Boolean indicating if token bucket throttled the call.
-- `retries`: Number of upstream HTTP retries attempted.
-- `http_status`: HTTP status code returned by Zoho API.
-- `zoho_code`: Zoho internal error code (e.g. 0 for success, 44 for block, 45 for quota).
-- `stock_status`: Normalized stock outcome (`in_stock`, `low_stock`, `out_of_stock`, `unknown`).
-- `result_count`: Number of entities returned.
-- `truncated`: Boolean indicating if output hit the 8 KB safety cap.
-- `request_id`: Correlation UUID for distributed tracing across logs.
+Fields: `ts` is ISO 8601; `event` is the discriminator; `tool` and `status` identify the operation and outcome; `latency_ms` is tool wall time; `cache_hit`, `throttled`, and `retries` describe connector behavior; `http_status` and `zoho_code` identify upstream outcomes when available; `stock_status` is normalized and optional for non-stock tools; `result_count` and `truncated` describe the projection; `request_id` correlates records. Tool event logging is separate from the audit stream.
 
-### B. Compliance Audit Event Schema (`audit_tool_invocation` - FR-15)
-
-Audit logs are emitted separately and guarantee that customer PII and upstream authentication secrets are never written:
+The separate `audit_tool_invocation` JSONL file (configured by `ZOHO_AUDIT_LOG_FILE`, default `.zoho_audit.jsonl`) records the tool name, timestamp, request ID, and a PII-minimized parameter summary. It omits credentials and free-text search terms and masks contact identifiers. Protect and rotate the file under the merchant's retention policy. If persistence fails, the tool call fails closed and emits an agent-safe error. Example:
 
 ```json
 {
   "timestamp": "2026-10-01T12:00:00.000000+00:00",
   "event": "audit_tool_invocation",
   "tool": "search_sales_orders",
-  "parameters": {
-    "customer_email": "p***a@example.com",
-    "customer_phone": "******3210",
-    "reference_number": "order_Rzp_101",
-    "auth_token": "[REDACTED_SECRET]"
-  },
-  "request_id": "req_8a9f20bc12d4"
+  "parameters": {"reference_number": "[MASKED]", "customer_email": "[MASKED]"},
+  "request_id": "req_example_only"
 }
 ```
 
----
+For production analysis, compute tool latency percentiles from `latency_ms`; cache hit rate as cache-hit stock tool calls divided by eligible stock tool calls; retry and throttle rates from their event fields; and quota use by reconciling connector upstream calls with the merchant's Zoho organization-level usage. Do not infer organization-wide quota use from this connector's logs alone.
 
-## 4. Real-World Measurement Design (Production Experimentation Plan)
+## Real merchant measurement plan
 
-To transition from fictional simulation to a live merchant rollout (e.g. at Kaveri Home Goods), the following rigorous experimentation plan must be followed:
+### Before a pilot
 
-### 1. Randomized Controlled Trial (A/B Test Design)
-- **Unit of Randomization:** User checkout session / cart abandonment event. Random assignment occurs when the checkout is abandoned on Razorpay Checkout.
-- **Control Group (50%):** Standard Abandoned Cart agent with stock-blind policy (sends standard 10% coupon nudge to all abandoned carts regardless of inventory).
-- **Treatment Group (50%):** Connector-aware agent with Zoho inventory awareness (suppresses out-of-stock items; sends stock scarcity message with 0% discount on low-stock items; sends standard 10% coupon on in-stock items).
+1. Validate with the merchant where stock-on-hand, sellable quantity, reservations, and warehouse availability are represented. Confirm the sellability rule and the cost of suppressing a cart that contains both unavailable and available items.
+2. Validate that the Zoho order records link to the relevant Razorpay order/payment, and which package, shipment, tracking, and invoice fields ops actually uses for disputes.
+3. Capture an agreed baseline and define the primary business outcome with the merchant. For nudges, use recovered contribution margin or conversion with discount cost included, not nudge count alone. For disputes, use evidence assembly time/completeness; measure case outcomes only if sample size and dispute rules allow a meaningful comparison.
+4. Estimate sample size from the merchant's baseline rate, selected minimum effect, variance, and acceptable false-positive/false-negative rates. The simulation does not supply these inputs, so it does not claim a powered sample size.
+5. Confirm Zoho plan quota, other integrations' consumption, data retention, access scopes, consent, and who can stop the pilot.
 
-### 2. Sample Size & Measurement Window
-- **Minimum Detectable Effect (MDE):** 1.5% absolute lift in recovered GMV and 15% reduction in discount spend.
-- **Sample Size:** 2,400 cart abandonments per group (4,800 total sessions), providing 80% statistical power at $\alpha = 0.05$.
-- **Window:** 14 consecutive days to account for day-of-week purchase cycles (weekend vs weekday decor shopping).
-- **Attribution Window:** 24 hours from cart nudge delivery.
+### Controlled rollout
 
-### 3. Confounders & Controls
-1. **Catalog Restock Timing:** If an item is restocked within 2 hours after suppression, did we lose a sale? *Mitigation:* Log suppressed carts and observe if user returned organically.
-2. **Discount Elasticity on Low Stock:** Does sending a scarcity message without a discount depress conversion compared to a 10% discount? *Mitigation:* Track conversion rates specifically for low-stock SKUs between Control and Treatment.
-3. **Multi-Item Carts:** If 1 item is out of stock but 2 items are in stock, should the agent nudge for the available items? *Mitigation:* Recommend partial cart nudges in v2.
-4. **Shared Upstream Quota:** If merchant's ERP or warehouse scanner consumes 800 Zoho API calls in the morning, the agent must not exhaust the remaining 200 calls.
+- **Control:** the merchant's current approved abandoned-cart process. Do not deliberately send known out-of-stock nudges as a control. If the existing process already suppresses unavailable items, compare with that policy and evaluate the incremental value of this connector.
+- **Treatment:** connector-aware decisioning, with the same channel, timing, and eligibility rules as control. Randomize eligible cart events where operationally and legally acceptable; otherwise use a pre-agreed matched or stepped rollout and document its limits.
+- **Window:** agree before launch. Include full weekday/weekend cycles and enough time to observe the conversion attribution window and inventory restocks. Avoid stopping early based on noisy intermediate outcomes.
+- **Disputes:** use a staged before/after or matched-case study of assembly time and missing-evidence rates. Keep case submission and dispute strategy under human control. Do not attribute win-rate changes to this connector without accounting for case mix and representativeness.
 
----
+### Minimum event fields
 
-## 5. Explicit Kill Criteria
+Use pseudonymous IDs and retain only approved fields: assignment group; event timestamp; cart or dispute cohort ID; SKU identifiers or approved category; stock result and `as_of`; cache age; tool outcome and latency; nudge eligibility/action/discount; delivery timestamp; purchase/conversion and net contribution margin in the attribution window; inventory restock/adjustment time; dispute reason/category; evidence fields present/missing; human assembly time; and final outcome when available. Keep identity mapping in the merchant's systems. Never put full customer details, tokens, or payment credentials in this evaluation dataset.
 
-We define strict, falsifiable kill criteria. If any of the following occur during a production pilot, **we pause or shut down the agent integration immediately**:
+### Confounders to track
 
-1. **Quota Contention:** If the agent consumes more than **15% of the merchant's total daily Zoho API quota** (150 calls on Free plan) during any 24-hour period, or triggers a Zoho Code 44 / Code 45 error in production.
-2. **Negative Conversion Delta:** If the 24-hour conversion rate in the Treatment group drops by more than **2.0% relative to Control** ($p < 0.05$), indicating that scarcity messaging without discount harms merchant brand or buyer intent.
-3. **Cache Inefficiency:** If production cache hit rate drops below **50%** over a 48-hour window, indicating high inventory churn or un-cacheable SKU dispersion.
-4. **Dispute Inefficacy:** If the dispute rebuttal win rate for the merchant fails to improve by at least **5.0 percentage points** after 30 days of automated evidence submission, or if evidence completeness is under **25%** due to poor warehouse ops data hygiene.
+- Seasonality, campaigns, traffic source, and weekday/weekend mix.
+- Restock timing, reservations, stock synchronization delay, and inventory churn after the check.
+- Discount elasticity, competing promotions, price changes, and multi-item-cart composition.
+- Nudge delivery failures, channel reachability, attribution-window choice, and customers who purchase without a nudge.
+- For disputes: reason-code mix, issuer rules, evidence retention, shipping partner behavior, case value, and ops handling changes.
+- Zoho quota consumption shared with other org users and integrations, API throttles, and connector cache behavior.
+
+## Kill criteria
+
+Pause treatment and review with the merchant if any of these pre-agreed stop conditions occurs:
+
+1. **Incorrect stock decision:** any confirmed case where stale or incorrect data causes a nudge to be sent for an item the agreed sellability rule says is unavailable, or a material number of available carts to be suppressed. Investigate the source field, timestamp, cache age, and threshold before resuming.
+2. **Quota or reliability harm:** any code 45 daily-quota exhaustion attributable to the connector, repeated code 44 organization blocks, or connector usage above the merchant-approved daily budget. The 15% of quota value can be an initial ceiling only if the merchant explicitly approves it; lower shared headroom takes precedence.
+3. **Customer or margin harm:** after the pre-agreed minimum sample and attribution window, treatment contribution margin or conversion is below control by the merchant's pre-agreed unacceptable amount, or the treatment creates a material complaint/opt-out increase. Define the margin and harm thresholds before looking at treatment results.
+4. **No operational value:** after a representative pilot, there is no meaningful reduction in unavailable-item nudges or evidence assembly time/completeness relative to the current process, and measured connector cost or maintenance is not justified by the merchant.
+5. **Evidence integrity:** any guessed or misattributed fulfillment evidence, or any systematic gap that makes the evidence bundle misleading. Disable automated use until corrected; missing data must stay explicitly missing.
+
+These are stop rules, not claims that a particular outcome has happened. The merchant and Razorpay owner must set numeric thresholds and sample requirements before a live experiment. A result that is inconclusive is not a success; extend only with an agreed rationale or stop.
