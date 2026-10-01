@@ -1,0 +1,29 @@
+{
+  "baseline_policy": {
+    "nudges_sent": 200,
+    "total_discount_disbursed_inr": 57282.1,
+    "wasted_discount_inr": 13536.8,
+    "wasted_nudges_count": 48,
+    "wasted_nudges_pct": 24.0
+  },
+  "connector_aware_policy": {
+    "discount_budget_saved_inr": 23849.1,
+    "discount_nudges": 100,
+    "nudges_sent": 152,
+    "scarcity_no_discount_nudges": 52,
+    "suppressed_nudges": 48,
+    "total_discount_disbursed_inr": 33433.0,
+    "wasted_discount_inr": 0.0,
+    "wasted_nudges_count": 0,
+    "wasted_nudges_pct": 0.0
+  },
+  "efficiency_and_cost": {
+    "api_calls_made": 30,
+    "api_calls_per_decision": 0.15,
+    "cache_hit_pct": 85.0,
+    "cache_hits": 170,
+    "zoho_free_tier_quota_consumed_pct": 3.0
+  },
+  "simulation_mode": "SIMULATED",
+  "total_cart_events": 200
+}

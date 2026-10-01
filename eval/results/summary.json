@@ -1,0 +1,72 @@
+{
+  "disclaimer": "ALL METRICS ARE SIMULATED ON FICTIONAL DATA (seed=42) FOR KAVERI HOME GOODS. NEVER CONSTRUE AS PRODUCTION RESULTS.",
+  "dispute_evaluation": {
+    "completeness_summary": {
+      "complete_evidence_count": 18,
+      "complete_evidence_pct": 45.0,
+      "no_evidence_count": 0,
+      "no_evidence_pct": 0.0,
+      "partial_evidence_count": 22,
+      "partial_evidence_pct": 55.0
+    },
+    "missing_fields_breakdown": {
+      "carrier": 18,
+      "delivery_date": 22,
+      "delivery_status": 18,
+      "invoice": 8,
+      "package": 18,
+      "shipment_date": 18,
+      "tracking_number": 22
+    },
+    "ops_impact": {
+      "api_calls_per_dispute_case": 2.1,
+      "auto_rebuttal_ready_cases": 18,
+      "ops_assisted_cases": 22,
+      "unsupported_cases": 0
+    },
+    "simulation_mode": "SIMULATED",
+    "total_dispute_cases": 40
+  },
+  "metrics_summary": {
+    "M1_discount_budget_saved_inr": 23849.1,
+    "M1_wasted_nudges_baseline_pct": 24.0,
+    "M1_wasted_nudges_connector_pct": 0.0,
+    "M2_dispute_evidence_complete_pct": 45.0,
+    "M2_dispute_evidence_partial_pct": 55.0,
+    "M3_cache_hit_pct": 85.0,
+    "M3_cart_api_calls_per_decision": 0.15,
+    "M3_zoho_free_tier_quota_consumed_pct": 3.0
+  },
+  "nudge_simulation": {
+    "baseline_policy": {
+      "nudges_sent": 200,
+      "total_discount_disbursed_inr": 57282.1,
+      "wasted_discount_inr": 13536.8,
+      "wasted_nudges_count": 48,
+      "wasted_nudges_pct": 24.0
+    },
+    "connector_aware_policy": {
+      "discount_budget_saved_inr": 23849.1,
+      "discount_nudges": 100,
+      "nudges_sent": 152,
+      "scarcity_no_discount_nudges": 52,
+      "suppressed_nudges": 48,
+      "total_discount_disbursed_inr": 33433.0,
+      "wasted_discount_inr": 0.0,
+      "wasted_nudges_count": 0,
+      "wasted_nudges_pct": 0.0
+    },
+    "efficiency_and_cost": {
+      "api_calls_made": 30,
+      "api_calls_per_decision": 0.15,
+      "cache_hit_pct": 85.0,
+      "cache_hits": 170,
+      "zoho_free_tier_quota_consumed_pct": 3.0
+    },
+    "simulation_mode": "SIMULATED",
+    "total_cart_events": 200
+  },
+  "seed": 42,
+  "simulation_mode": "SIMULATED",
+  "status": "COMPLETED"
+}
