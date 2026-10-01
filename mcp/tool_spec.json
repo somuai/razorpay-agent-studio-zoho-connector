@@ -1,0 +1,294 @@
+{
+  "description": "Read-only Zoho Inventory FastMCP Connector for Razorpay Agent Studio",
+  "server_name": "zoho-inventory-connector",
+  "tool_count": 8,
+  "tools": [
+    {
+      "description": "Retrieve comprehensive projection of a single inventory item by numeric item_id. Use this tool when you need granular product details (price, description, unit). DO NOT use this for multi-item cart availability decisions (use 'get_stock_availability').",
+      "input_schema": {
+        "properties": {
+          "item_id": {
+            "title": "Item Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "item_id"
+        ],
+        "title": "get_itemArguments",
+        "type": "object"
+      },
+      "name": "get_item"
+    },
+    {
+      "description": "PRIMARY DECISION PRIMITIVE for Dispute Responder chargeback rebuttals (FR-5.4). Assembles cross-object fulfillment proof across sales order, tax invoice, packaging slip, carrier designation, tracking number, and delivery date. Never guesses absent fields. Returns completeness: 'complete' (ready to submit), 'partial' (enumerates missing fields), or 'none'.",
+      "input_schema": {
+        "properties": {
+          "bypass_cache": {
+            "default": false,
+            "title": "Bypass Cache",
+            "type": "boolean"
+          },
+          "salesorder_id": {
+            "title": "Salesorder Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "salesorder_id"
+        ],
+        "title": "get_order_fulfillment_evidenceArguments",
+        "type": "object"
+      },
+      "name": "get_order_fulfillment_evidence"
+    },
+    {
+      "description": "Retrieve details of a single sales order by salesorder_id. Customer PII is masked by default (set include_pii=True only if strictly necessary). DO NOT use this for dispute rebuttal assembly (use 'get_order_fulfillment_evidence' instead).",
+      "input_schema": {
+        "properties": {
+          "include_pii": {
+            "default": false,
+            "title": "Include Pii",
+            "type": "boolean"
+          },
+          "salesorder_id": {
+            "title": "Salesorder Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "salesorder_id"
+        ],
+        "title": "get_sales_orderArguments",
+        "type": "object"
+      },
+      "name": "get_sales_order"
+    },
+    {
+      "description": "PRIMARY DECISION PRIMITIVE for Abandoned Cart Conversion agents (FR-5). Evaluates real sellable stock ('actual_available_stock') for up to 20 SKUs or item IDs. Returns status: 'in_stock' (safe to offer discount), 'low_stock' (send scarcity urgency, no discount), 'out_of_stock' (SUPPRESS NUDGE completely), or 'unknown'. Exposes data freshness 'as_of' and 'cached'.",
+      "input_schema": {
+        "properties": {
+          "bypass_cache": {
+            "default": false,
+            "title": "Bypass Cache",
+            "type": "boolean"
+          },
+          "skus_or_ids": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Skus Or Ids",
+            "type": "array"
+          }
+        },
+        "required": [
+          "skus_or_ids"
+        ],
+        "title": "get_stock_availabilityArguments",
+        "type": "object"
+      },
+      "name": "get_stock_availability"
+    },
+    {
+      "description": "Browse the merchant's Zoho Inventory catalog with pagination. Use this tool when you need an overview of products, item IDs, and active statuses. DO NOT use this for real-time cart-nudge stock decisions (use 'get_stock_availability' instead).",
+      "input_schema": {
+        "properties": {
+          "page": {
+            "default": 1,
+            "title": "Page",
+            "type": "integer"
+          },
+          "per_page": {
+            "default": 50,
+            "title": "Per Page",
+            "type": "integer"
+          },
+          "status": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Status"
+          }
+        },
+        "title": "list_itemsArguments",
+        "type": "object"
+      },
+      "name": "list_items"
+    },
+    {
+      "description": "Browse sales orders with status and date range filtering. Use this tool to find orders by timeframe or customer. DO NOT use raw queries; date strings must be YYYY-MM-DD.",
+      "input_schema": {
+        "properties": {
+          "customer_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Customer Id"
+          },
+          "date_from": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Date From"
+          },
+          "date_to": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Date To"
+          },
+          "page": {
+            "default": 1,
+            "title": "Page",
+            "type": "integer"
+          },
+          "per_page": {
+            "default": 50,
+            "title": "Per Page",
+            "type": "integer"
+          },
+          "status": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Status"
+          }
+        },
+        "title": "list_sales_ordersArguments",
+        "type": "object"
+      },
+      "name": "list_sales_orders"
+    },
+    {
+      "description": "Search catalog items by name or SKU substring, with optional low-stock filter. Use this tool when customer mentions a product name or partial SKU. DO NOT use raw query syntax; input is strictly validated.",
+      "input_schema": {
+        "properties": {
+          "limit": {
+            "default": 25,
+            "title": "Limit",
+            "type": "integer"
+          },
+          "only_low_stock": {
+            "default": false,
+            "title": "Only Low Stock",
+            "type": "boolean"
+          },
+          "query": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Query"
+          },
+          "sku": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Sku"
+          }
+        },
+        "title": "search_itemsArguments",
+        "type": "object"
+      },
+      "name": "search_items"
+    },
+    {
+      "description": "Match a customer payment or dispute to a Zoho sales order. Accepts reference_number, customer_email, or razorpay_order_id. Returns matching orders with an explicit 'match_basis' explaining how match occurred (FR-5.3).",
+      "input_schema": {
+        "properties": {
+          "customer_email": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Customer Email"
+          },
+          "include_pii": {
+            "default": false,
+            "title": "Include Pii",
+            "type": "boolean"
+          },
+          "limit": {
+            "default": 25,
+            "title": "Limit",
+            "type": "integer"
+          },
+          "razorpay_order_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Razorpay Order Id"
+          },
+          "reference_number": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Reference Number"
+          }
+        },
+        "title": "search_sales_ordersArguments",
+        "type": "object"
+      },
+      "name": "search_sales_orders"
+    }
+  ],
+  "version": "1.0.0"
+}

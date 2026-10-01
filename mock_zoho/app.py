@@ -215,7 +215,9 @@ async def list_items(
         filtered = [
             it
             for it in filtered
-            if st in it.get("name", "").lower() or st in it.get("sku", "").lower()
+            if st in it.get("name", "").lower()
+            or st in it.get("sku", "").lower()
+            or st in it.get("item_id", "").lower()
         ]
 
     start = (page - 1) * per_page

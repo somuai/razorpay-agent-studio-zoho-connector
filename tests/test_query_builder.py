@@ -51,20 +51,20 @@ def test_valid_numeric_id() -> None:
 @pytest.mark.parametrize(
     "invalid_id",
     [
-        "item_123",
-        "-123",
+        "item'123",
         "123; DROP",
         "123 456",
-        "abc",
+        "item/123",
+        "item?id=1",
         "",
-        "123456789012345678901234567",  # > 25 digits
+        "a" * 51,
     ],
 )
 def test_numeric_id_validation_failures(invalid_id: str) -> None:
     with pytest.raises(InputValidationError) as exc_info:
         ValidatedQueryBuilder.validate_numeric_id(invalid_id, field_name="item_id")
     assert (
-        "numeric digits" in exc_info.value.reason.lower()
+        "alphanumeric" in exc_info.value.reason.lower()
         or "cannot be null" in exc_info.value.reason.lower()
     )
 

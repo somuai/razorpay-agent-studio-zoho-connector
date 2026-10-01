@@ -25,7 +25,7 @@ def mask_phone(phone: str | None) -> str | None:
     if len(digits_only) <= 4:
         return "****"
     last_four = digits_only[-4:]
-    return f"{'*' * (len(digits_only) - 4)}{last_four}"
+    return f"******{last_four}"
 
 
 def mask_name(name: str | None) -> str | None:

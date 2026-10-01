@@ -14,7 +14,7 @@ from zoho_inventory_connector.client.errors import InputValidationError
 PROHIBITED_CHARS_PATTERN = re.compile(
     r"['\";&?=\x00-\x1f\x7f]|--|/\*|\*/|%26|%3f|%3d", re.IGNORECASE
 )
-ALPHANUMERIC_ID_PATTERN = re.compile(r"^\d{1,25}$")
+ALPHANUMERIC_ID_PATTERN = re.compile(r"^[a-zA-Z0-9_\-]{1,50}$")
 SAFE_SKU_PATTERN = re.compile(r"^[a-zA-Z0-9_\-\.\/]{1,50}$")
 SAFE_REF_PATTERN = re.compile(r"^[a-zA-Z0-9_\-\.\/#:]{1,64}$")
 ISO_DATE_PATTERN = re.compile(r"^\d{4}-\d{2}-\d{2}$")
@@ -57,7 +57,7 @@ class ValidatedQueryBuilder:
 
     @staticmethod
     def validate_numeric_id(val: Any, field_name: str) -> str:
-        """Validate numeric Zoho resource identifiers (e.g., item_id, salesorder_id)."""
+        """Validate Zoho resource identifiers (e.g., item_id, salesorder_id)."""
         if val is None:
             raise InputValidationError(
                 field=field_name, value="None", reason="Identifier cannot be null."
@@ -67,7 +67,7 @@ class ValidatedQueryBuilder:
             raise InputValidationError(
                 field=field_name,
                 value=str_val,
-                reason="Zoho identifiers must consist only of 1 to 25 numeric digits.",
+                reason="Zoho identifiers must consist only of 1 to 50 alphanumeric characters, underscores, or dashes.",
             )
         return str_val
 
