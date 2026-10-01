@@ -9,6 +9,7 @@ from typing import Any
 
 from zoho_inventory_connector.client.client import ZohoClient
 from zoho_inventory_connector.client.errors import NotFoundError
+from zoho_inventory_connector.client.parsing import parse_upstream_float
 from zoho_inventory_connector.client.query_builder import ValidatedQueryBuilder
 from zoho_inventory_connector.models.evidence import (
     EvidenceCompleteness,
@@ -93,7 +94,7 @@ class DisputeService:
                     bypass_cache=bypass_cache,
                 )
                 invoices = inv_res.get("invoices", [])
-            except Exception:
+            except NotFoundError:
                 invoices = []
 
         if not packages:
@@ -105,7 +106,7 @@ class DisputeService:
                     bypass_cache=bypass_cache,
                 )
                 packages = pkg_res.get("packages", [])
-            except Exception:
+            except NotFoundError:
                 packages = []
 
         if not shipments:
@@ -117,7 +118,7 @@ class DisputeService:
                     bypass_cache=bypass_cache,
                 )
                 shipments = shp_res.get("shipmentorders", [])
-            except Exception:
+            except NotFoundError:
                 shipments = []
 
         # 3. Compile Individual Evidence Fields
@@ -133,7 +134,7 @@ class DisputeService:
             details={
                 "status": so_status,
                 "date": so_date,
-                "total": float(str(so_data.get("total") or 0.0)),
+                "total": parse_upstream_float(so_data.get("total"), "salesorder.total"),
                 "currency": str(so_data.get("currency_code", "INR")),
             },
         )
@@ -146,7 +147,7 @@ class DisputeService:
                 source="invoices",
                 details={
                     "status": str(inv.get("status", "")),
-                    "total": float(str(inv.get("total") or 0.0)),
+                    "total": parse_upstream_float(inv.get("total"), "invoice.total"),
                     "date": str(inv.get("date", "")),
                 },
             )

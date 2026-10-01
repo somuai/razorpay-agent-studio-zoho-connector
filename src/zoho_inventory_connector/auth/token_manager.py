@@ -61,9 +61,7 @@ class TokenManager:
 
     def __repr__(self) -> str:
         """Never expose secrets in representations (FR-1.4, NFR-1)."""
-        ref_masked = f"{self.refresh_token[:4]}...[REDACTED]" if self.refresh_token else "None"
-        acc_masked = f"{self._access_token[:4]}...[REDACTED]" if self._access_token else "None"
-        return f"<TokenManager dc='{self.dc}' refresh_token={ref_masked} access_token={acc_masked}>"
+        return f"<TokenManager dc='{self.dc}' refresh_token=[REDACTED] access_token=[REDACTED]>"
 
     def _load_from_file(self) -> None:
         """Load stored refresh token from secure file."""

@@ -5,6 +5,7 @@ from typing import Any
 
 from zoho_inventory_connector.client.client import ZohoClient
 from zoho_inventory_connector.client.errors import InputValidationError, NotFoundError
+from zoho_inventory_connector.client.parsing import parse_upstream_float
 from zoho_inventory_connector.client.query_builder import ValidatedQueryBuilder
 from zoho_inventory_connector.models.item import (
     ItemStockAvailability,
@@ -102,8 +103,6 @@ class StockService:
                         ):
                             item_raw = it
                             break
-                    if not item_raw and items_list:
-                        item_raw = items_list[0]
                 except NotFoundError:
                     item_raw = None
 
@@ -128,24 +127,33 @@ class StockService:
                 )
                 continue
 
-            # Determine sellable quantity (FR-6.1, Assumption A1)
-            # Prioritize actual_available_stock -> available_stock -> stock_on_hand
-            stock_field = "actual_available_stock"
+            # Only use an explicitly named availability quantity. Physical stock
+            # is not a safe substitute for sellable stock because it may include
+            # reserved or already-committed units.
+            stock_field = "none"
             raw_qty = item_raw.get("actual_available_stock")
-            if raw_qty is None:
-                stock_field = "available_stock"
-                raw_qty = item_raw.get("available_stock")
-            if raw_qty is None:
-                stock_field = "stock_on_hand"
-                raw_qty = item_raw.get("stock_on_hand", 0.0)
+            locations_raw = item_raw.get("locations")
+            if raw_qty is not None:
+                stock_field = "actual_available_stock"
+            elif isinstance(locations_raw, list) and len(locations_raw) == 1:
+                only_location = locations_raw[0]
+                if isinstance(only_location, dict):
+                    raw_qty = only_location.get("location_actual_available_stock")
+                    if raw_qty is not None:
+                        stock_field = "locations[0].location_actual_available_stock"
 
-            sellable_qty = float(raw_qty or 0.0)
-            reorder_lvl = float(item_raw.get("reorder_level") or self.default_low_stock_threshold)
+            has_availability = raw_qty is not None
+            sellable_qty = parse_upstream_float(raw_qty, stock_field)
+            reorder_lvl = parse_upstream_float(
+                item_raw.get("reorder_level"), "reorder_level", self.default_low_stock_threshold
+            )
             if reorder_lvl <= 0:
                 reorder_lvl = self.default_low_stock_threshold
 
             # Derive stock status (FR-5.2)
-            if sellable_qty <= 0:
+            if not has_availability:
+                status = StockStatus.UNKNOWN
+            elif sellable_qty <= 0:
                 status = StockStatus.OUT_OF_STOCK
             elif sellable_qty <= reorder_lvl:
                 status = StockStatus.LOW_STOCK
@@ -153,17 +161,29 @@ class StockService:
                 status = StockStatus.IN_STOCK
 
             # Warehouse breakdown
-            warehouses_raw = item_raw.get("warehouses", [])
+            warehouses_raw = item_raw.get("locations", item_raw.get("warehouses", []))
             wh_list: list[WarehouseStock] = []
             if isinstance(warehouses_raw, list):
                 for wh in warehouses_raw:
                     if isinstance(wh, dict):
                         wh_list.append(
                             WarehouseStock(
-                                warehouse_id=str(wh.get("warehouse_id", "")),
-                                warehouse_name=str(wh.get("warehouse_name", "Main Warehouse")),
-                                stock_on_hand=float(wh.get("warehouse_stock_on_hand", 0.0)),
-                                available_stock=float(wh.get("warehouse_available_stock", 0.0)),
+                                warehouse_id=str(wh.get("location_id", wh.get("warehouse_id", ""))),
+                                warehouse_name=str(
+                                    wh.get(
+                                        "location_name",
+                                        wh.get("warehouse_name", "Unknown location"),
+                                    )
+                                ),
+                                stock_on_hand=parse_upstream_float(
+                                    wh.get("location_stock_on_hand")
+                                    or wh.get("warehouse_stock_on_hand"),
+                                    "location_stock_on_hand",
+                                ),
+                                available_stock=parse_upstream_float(
+                                    wh.get("location_actual_available_stock"),
+                                    "location_actual_available_stock",
+                                ),
                             )
                         )
 

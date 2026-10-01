@@ -42,7 +42,7 @@ class ItemProjection(BaseModel):
 
 
 class ItemStockAvailability(BaseModel):
-    """Sellable stock decision primitive for cart abandonment agents (FR-5)."""
+    """Advisory availability projection for cart agents; not a reservation (FR-5)."""
 
     model_config = ConfigDict(extra="ignore")
 
@@ -52,11 +52,11 @@ class ItemStockAvailability(BaseModel):
     status: StockStatus
     quantity_sellable: float = Field(
         ...,
-        description="True sellable inventory count accounting for committed sales orders",
+        description="Quantity from the selected Zoho availability field; merchant sellability rules must be confirmed",
     )
     source_stock_field: str = Field(
         default="actual_available_stock",
-        description="Zoho field name used to derive sellable quantity (FR-6.1)",
+        description="Zoho field name used for the advisory availability quantity (FR-6.1)",
     )
     reorder_level: float = 0.0
     unit: str = "pcs"

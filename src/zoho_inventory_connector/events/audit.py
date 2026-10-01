@@ -5,22 +5,15 @@ and correlation identifiers, separate from application logs.
 """
 
 import json
-import sys
+import os
 import uuid
 from dataclasses import asdict, dataclass
 from datetime import UTC, datetime
+from pathlib import Path
 from typing import Any
 
+from zoho_inventory_connector.client.errors import AuditSinkError
 from zoho_inventory_connector.models.order import mask_email, mask_phone
-
-SENSITIVE_PARAM_KEYS = {
-    "customer_email",
-    "email",
-    "phone",
-    "customer_phone",
-    "authorization",
-    "token",
-}
 
 
 def sanitize_audit_params(params: dict[str, Any]) -> dict[str, Any]:
@@ -34,6 +27,8 @@ def sanitize_audit_params(params: dict[str, Any]) -> dict[str, Any]:
             sanitized[key] = mask_email(val)
         elif "phone" in lower_k and isinstance(val, str):
             sanitized[key] = mask_phone(val)
+        elif lower_k in {"query", "search", "search_text", "free_text"}:
+            sanitized[key] = "[OMITTED]"
         else:
             sanitized[key] = val
     return sanitized
@@ -69,16 +64,27 @@ class AuditEvent:
 
 
 class AuditLogger:
-    """Sink for compliance and audit trail records."""
+    """Private JSONL audit sink, separate from application and telemetry logs."""
 
-    def __init__(self) -> None:
+    def __init__(self, log_file: Path | str | None = None) -> None:
         self.audit_records: list[AuditEvent] = []
+        self.log_file = Path(log_file) if log_file else None
 
     def record(self, event: AuditEvent) -> None:
-        """Store audit record and output to stderr (NFR-8)."""
-        self.audit_records.append(event)
-        sys.stderr.write(f"[AUDIT] {event.to_json()}\n")
-        sys.stderr.flush()
+        """Store in memory and append a mode-0600 record to the separate audit file."""
+        if self.log_file is None:
+            self.audit_records.append(event)
+            return
+        try:
+            self.log_file.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
+            flags = os.O_WRONLY | os.O_CREAT | os.O_APPEND
+            fd = os.open(self.log_file, flags, 0o600)
+            os.fchmod(fd, 0o600)
+            with os.fdopen(fd, "a", encoding="utf-8") as stream:
+                stream.write(event.to_json() + "\n")
+            self.audit_records.append(event)
+        except OSError as exc:
+            raise AuditSinkError(event.tool, event.request_id) from exc
 
     def get_records(self) -> list[AuditEvent]:
         return list(self.audit_records)
@@ -88,4 +94,4 @@ class AuditLogger:
 
 
 # Default singleton instance
-default_audit_logger = AuditLogger()
+default_audit_logger = AuditLogger(os.environ.get("ZOHO_AUDIT_LOG_FILE", ".zoho_audit.jsonl"))

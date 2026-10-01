@@ -129,4 +129,5 @@ def test_tokens_never_logged_or_printed(caplog: pytest.LogCaptureFixture) -> Non
 
     log_output = caplog.text
     assert raw_secret_token not in log_output
+    assert raw_secret_token[:4] not in repr(tm)
     assert "[REDACTED]" in repr(tm)

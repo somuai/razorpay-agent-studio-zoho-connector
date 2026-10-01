@@ -59,12 +59,18 @@ class ZohoClient:
         self.metrics: RateLimitMetrics = metrics or RateLimitMetrics()
         self.max_retries = max_retries
         self.base_url_override = base_url_override
+        self._owns_http_client = http_client is None
         self._http_client = http_client or httpx.AsyncClient(timeout=15.0)
 
     def _resolve_base_url(self) -> str:
         if self.base_url_override:
             return self.base_url_override.rstrip("/")
         return self.token_manager.get_api_base_url()
+
+    async def aclose(self) -> None:
+        """Close the HTTP client only when this client created it."""
+        if self._owns_http_client:
+            await self._http_client.aclose()
 
     async def get(
         self,
@@ -122,9 +128,12 @@ class ZohoClient:
                     res = await self._http_client.get(full_url, params=req_params, headers=headers)
                 except (httpx.TransportError, httpx.TimeoutException) as err:
                     if attempt > self.max_retries:
-                        raise UpstreamError(f"Network error connecting to Zoho: {err}") from err
+                        raise UpstreamError(
+                            "Network error connecting to Zoho Inventory.",
+                            http_status=None,
+                        ) from err
                     await self.metrics.record_retry()
-                    backoff = min(8.0, (2 ** (attempt - 1)) * 0.5 + random.uniform(0, 0.2))
+                    backoff = random.uniform(0.0, min(8.0, (2 ** (attempt - 1)) * 0.5))
                     await self.clock.sleep(backoff)
                     continue
 
@@ -169,13 +178,19 @@ class ZohoClient:
 
             # E) HTTP 429 Rate Limit (FR-3.3)
             if res.status_code == 429:
+                await self.metrics.record_throttled()
                 if attempt > self.max_retries:
-                    raise RateLimitError(kind="per_minute", retry_after=2.0)
+                    raise RateLimitError(
+                        kind="per_minute",
+                        retry_after=min(60.0, float(res.headers.get("Retry-After", "2")))
+                        if res.headers.get("Retry-After", "2").replace(".", "", 1).isdigit()
+                        else 2.0,
+                    )
                 retry_header = res.headers.get("Retry-After")
-                if retry_header and retry_header.isdigit():
-                    delay = float(retry_header)
+                if retry_header and retry_header.replace(".", "", 1).isdigit():
+                    delay = min(60.0, max(0.0, float(retry_header)))
                 else:
-                    delay = min(10.0, (2 ** (attempt - 1)) * 1.0 + random.uniform(0.1, 0.5))
+                    delay = random.uniform(0.0, min(10.0, 2 ** (attempt - 1)))
 
                 await self.metrics.record_retry()
                 await self.clock.sleep(delay)
@@ -188,9 +203,12 @@ class ZohoClient:
             # G) 5xx Server Error (FR-2.4)
             if res.status_code >= 500:
                 if attempt > self.max_retries:
-                    raise UpstreamError(f"Zoho returned server error {res.status_code}: {res.text}")
+                    raise UpstreamError(
+                        f"Zoho Inventory returned server error {res.status_code}.",
+                        http_status=res.status_code,
+                    )
                 await self.metrics.record_retry()
-                delay = min(8.0, (2 ** (attempt - 1)) * 1.0 + random.uniform(0, 0.2))
+                delay = random.uniform(0.0, min(8.0, 2 ** (attempt - 1)))
                 await self.clock.sleep(delay)
                 continue
 
@@ -205,7 +223,7 @@ class ZohoClient:
 
             # Unhandled status
             raise UpstreamError(
-                message=f"Zoho returned unexpected HTTP status {res.status_code}: {res.text}",
+                message=f"Zoho Inventory returned unexpected HTTP status {res.status_code}.",
                 http_status=res.status_code,
             )
 

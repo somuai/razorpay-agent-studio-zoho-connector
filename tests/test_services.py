@@ -66,6 +66,11 @@ async def test_stock_availability_derivation(mock_client: ZohoClient) -> None:
     assert len(res_unknown.items) == 1
     assert res_unknown.items[0].status == StockStatus.UNKNOWN
 
+    # A substring search result is not an exact SKU match; never borrow its stock.
+    res_partial_match = await service.get_stock_availability(["KHG-CUSH-00"])
+    assert res_partial_match.items[0].status == StockStatus.UNKNOWN
+    assert res_partial_match.items[0].item_id == "unknown"
+
 
 @pytest.mark.asyncio
 async def test_fulfillment_evidence_composition(mock_client: ZohoClient) -> None:

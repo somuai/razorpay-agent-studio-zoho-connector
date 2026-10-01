@@ -4,20 +4,27 @@ import json
 import os
 import sys
 import uuid
-from typing import Any
+from collections.abc import Awaitable, Callable
+from datetime import UTC, datetime
+from functools import wraps
+from typing import Annotated, Any, TypeVar
 
 from mcp.server.fastmcp import FastMCP
+from pydantic import Field
 
 from zoho_inventory_connector.auth.token_manager import TokenManager
 from zoho_inventory_connector.client.client import ZohoClient
 from zoho_inventory_connector.client.errors import (
+    AuditSinkError,
     ConnectorError,
     InputValidationError,
 )
+from zoho_inventory_connector.client.parsing import parse_upstream_float
 from zoho_inventory_connector.client.query_builder import ValidatedQueryBuilder
 from zoho_inventory_connector.events.audit import AuditEvent, default_audit_logger
 from zoho_inventory_connector.events.emitter import ToolExecutionEvent, default_emitter
 from zoho_inventory_connector.models.order import SalesOrderProjection
+from zoho_inventory_connector.ratelimit.metrics import ACTIVE_TOOL_CALL_METRICS, ToolCallMetrics
 from zoho_inventory_connector.services.dispute_service import DisputeService
 from zoho_inventory_connector.services.stock_service import StockService
 
@@ -31,15 +38,46 @@ _client: ZohoClient | None = None
 _stock_service: StockService | None = None
 _dispute_service: DisputeService | None = None
 
+_ToolCallable = TypeVar("_ToolCallable", bound=Callable[..., Awaitable[dict[str, Any]]])
+
+
+def _capture_tool_metrics(function: _ToolCallable) -> _ToolCallable:
+    """Attach request-local retry/throttle counters to emitted tool events."""
+
+    @wraps(function)
+    async def wrapped(*args: Any, **kwargs: Any) -> dict[str, Any]:
+        call_metrics = ToolCallMetrics()
+        token = ACTIVE_TOOL_CALL_METRICS.set(call_metrics)
+        try:
+            try:
+                return await function(*args, **kwargs)
+            except AuditSinkError as error:
+                default_emitter.emit(
+                    ToolExecutionEvent.create(
+                        tool=error.tool,
+                        status="error",
+                        latency_ms=0.0,
+                        http_status=None,
+                        zoho_code=None,
+                        result_count=0,
+                        request_id=error.request_id,
+                    )
+                )
+                return error.to_dict()
+        finally:
+            ACTIVE_TOOL_CALL_METRICS.reset(token)
+
+    return wrapped  # type: ignore[return-value]
+
 
 def get_client() -> ZohoClient:
     """Retrieve or initialize global ZohoClient from environment."""
     global _client
     if _client is None:
-        client_id = os.environ.get("ZOHO_CLIENT_ID", "mock_client_id")
-        client_secret = os.environ.get("ZOHO_CLIENT_SECRET", "mock_client_secret")
-        refresh_token = os.environ.get("ZOHO_REFRESH_TOKEN", "mock_refresh_token")
-        org_id = os.environ.get("ZOHO_ORG_ID", "org_kaveri_blr_001")
+        client_id = os.environ.get("ZOHO_CLIENT_ID", "")
+        client_secret = os.environ.get("ZOHO_CLIENT_SECRET", "")
+        refresh_token = os.environ.get("ZOHO_REFRESH_TOKEN")
+        org_id = os.environ.get("ZOHO_ORG_ID", "")
         dc = os.environ.get("ZOHO_DC", "in")
         accounts_override = os.environ.get("ZOHO_ACCOUNTS_BASE_URL")
         api_override = os.environ.get("ZOHO_API_BASE_URL")
@@ -85,6 +123,7 @@ def get_dispute_service() -> DisputeService:
 
 def _enforce_output_cap(payload: dict[str, Any], list_key: str | None = None) -> dict[str, Any]:
     """Ensure serialized response does not exceed 8 KB limit (FR-6.2)."""
+    payload = dict(payload)
     serialized = json.dumps(payload, ensure_ascii=False)
     if len(serialized.encode("utf-8")) <= MAX_OUTPUT_BYTES:
         return payload
@@ -97,13 +136,25 @@ def _enforce_output_cap(payload: dict[str, Any], list_key: str | None = None) ->
     )
 
     if list_key and list_key in payload and isinstance(payload[list_key], list):
-        items = payload[list_key]
+        items = list(payload[list_key])
         while (
             items
             and len(json.dumps(payload, ensure_ascii=False).encode("utf-8")) > MAX_OUTPUT_BYTES
         ):
             items.pop()
         payload[list_key] = items
+
+    # A single unusually large projected field can exceed the cap even after a
+    # list is emptied. Return a small, deterministic envelope in that case.
+    if len(json.dumps(payload, ensure_ascii=False).encode("utf-8")) > MAX_OUTPUT_BYTES:
+        payload = {
+            "truncated": True,
+            "truncation_guidance": (
+                "Response exceeded 8 KB context safety cap. Narrow the query or request fewer fields."
+            ),
+        }
+        if list_key:
+            payload[list_key] = []
 
     return payload
 
@@ -119,9 +170,10 @@ def _enforce_output_cap(payload: dict[str, Any], list_key: str | None = None) ->
         "DO NOT use this for real-time cart-nudge stock decisions (use 'get_stock_availability' instead)."
     ),
 )
+@_capture_tool_metrics
 async def list_items(
-    page: int = 1,
-    per_page: int = 50,
+    page: Annotated[int, Field(ge=1, le=1000)] = 1,
+    per_page: Annotated[int, Field(ge=1, le=50)] = 50,
     status: str | None = None,
 ) -> dict[str, Any]:
     req_id = f"req_{uuid.uuid4().hex[:12]}"
@@ -156,10 +208,12 @@ async def list_items(
                 "name": str(it.get("name")),
                 "sku": str(it.get("sku")),
                 "status": str(it.get("status")),
-                "rate": float(str(it.get("rate") or 0.0)),
-                "stock_on_hand": float(str(it.get("stock_on_hand") or 0.0)),
-                "actual_available_stock": float(str(it.get("actual_available_stock") or 0.0)),
-                "reorder_level": float(str(it.get("reorder_level") or 0.0)),
+                "rate": parse_upstream_float(it.get("rate"), "rate"),
+                "stock_on_hand": parse_upstream_float(it.get("stock_on_hand"), "stock_on_hand"),
+                "actual_available_stock": parse_upstream_float(
+                    it.get("actual_available_stock"), "actual_available_stock"
+                ),
+                "reorder_level": parse_upstream_float(it.get("reorder_level"), "reorder_level"),
             }
             for it in items_raw
         ]
@@ -215,6 +269,7 @@ async def list_items(
         "DO NOT use this for multi-item cart availability decisions (use 'get_stock_availability')."
     ),
 )
+@_capture_tool_metrics
 async def get_item(item_id: str) -> dict[str, Any]:
     req_id = f"req_{uuid.uuid4().hex[:12]}"
     default_audit_logger.record(AuditEvent.create("get_item", {"item_id": item_id}, req_id))
@@ -230,11 +285,13 @@ async def get_item(item_id: str) -> dict[str, Any]:
             "name": str(it.get("name")),
             "sku": str(it.get("sku")),
             "status": str(it.get("status")),
-            "rate": float(str(it.get("rate") or 0.0)),
+            "rate": parse_upstream_float(it.get("rate"), "rate"),
             "currency_code": str(it.get("currency_code", "INR")),
-            "stock_on_hand": float(str(it.get("stock_on_hand") or 0.0)),
-            "actual_available_stock": float(str(it.get("actual_available_stock") or 0.0)),
-            "reorder_level": float(str(it.get("reorder_level") or 0.0)),
+            "stock_on_hand": parse_upstream_float(it.get("stock_on_hand"), "stock_on_hand"),
+            "actual_available_stock": parse_upstream_float(
+                it.get("actual_available_stock"), "actual_available_stock"
+            ),
+            "reorder_level": parse_upstream_float(it.get("reorder_level"), "reorder_level"),
             "unit": str(it.get("unit", "pcs")),
             "description": it.get("description"),
             "as_of": as_of,
@@ -279,11 +336,12 @@ async def get_item(item_id: str) -> dict[str, Any]:
         "DO NOT use raw query syntax; input is strictly validated."
     ),
 )
+@_capture_tool_metrics
 async def search_items(
-    query: str | None = None,
-    sku: str | None = None,
+    query: Annotated[str | None, Field(max_length=100)] = None,
+    sku: Annotated[str | None, Field(max_length=50)] = None,
     only_low_stock: bool = False,
-    limit: int = 25,
+    limit: Annotated[int, Field(ge=1, le=25)] = 25,
 ) -> dict[str, Any]:
     req_id = f"req_{uuid.uuid4().hex[:12]}"
     default_audit_logger.record(
@@ -308,8 +366,10 @@ async def search_items(
 
         results = []
         for it in items_raw:
-            actual_avail = float(str(it.get("actual_available_stock") or 0.0))
-            reorder = float(str(it.get("reorder_level") or 5.0))
+            actual_avail = parse_upstream_float(
+                it.get("actual_available_stock"), "actual_available_stock"
+            )
+            reorder = parse_upstream_float(it.get("reorder_level"), "reorder_level", 5.0)
             if only_low_stock and actual_avail > reorder:
                 continue
 
@@ -318,7 +378,7 @@ async def search_items(
                     "item_id": str(it.get("item_id")),
                     "name": str(it.get("name")),
                     "sku": str(it.get("sku")),
-                    "rate": float(str(it.get("rate") or 0.0)),
+                    "rate": parse_upstream_float(it.get("rate"), "rate"),
                     "actual_available_stock": actual_avail,
                     "reorder_level": reorder,
                     "is_low_stock": 0 < actual_avail <= reorder,
@@ -369,13 +429,14 @@ async def search_items(
     name="get_stock_availability",
     description=(
         "PRIMARY DECISION PRIMITIVE for Abandoned Cart Conversion agents (FR-5). "
-        "Evaluates real sellable stock ('actual_available_stock') for up to 20 SKUs or item IDs. "
-        "Returns status: 'in_stock' (safe to offer discount), 'low_stock' (send scarcity urgency, no discount), "
-        "'out_of_stock' (SUPPRESS NUDGE completely), or 'unknown'. Exposes data freshness 'as_of' and 'cached'."
+        "Returns an advisory stock status using an explicit Zoho availability quantity for up to 20 SKUs or item IDs. "
+        "Confirm with the merchant that this field matches channel sellability before acting. "
+        "Returns 'in_stock', 'low_stock', 'out_of_stock', or 'unknown', with data freshness 'as_of' and 'cached'."
     ),
 )
+@_capture_tool_metrics
 async def get_stock_availability(
-    skus_or_ids: list[str],
+    skus_or_ids: Annotated[list[str], Field(min_length=1, max_length=20)],
     bypass_cache: bool = False,
 ) -> dict[str, Any]:
     req_id = f"req_{uuid.uuid4().hex[:12]}"
@@ -434,13 +495,14 @@ async def get_stock_availability(
         "DO NOT use raw queries; date strings must be YYYY-MM-DD."
     ),
 )
+@_capture_tool_metrics
 async def list_sales_orders(
-    status: str | None = None,
-    customer_id: str | None = None,
-    date_from: str | None = None,
-    date_to: str | None = None,
-    page: int = 1,
-    per_page: int = 50,
+    status: Annotated[str | None, Field(max_length=30)] = None,
+    customer_id: Annotated[str | None, Field(max_length=50)] = None,
+    date_from: Annotated[str | None, Field(max_length=10)] = None,
+    date_to: Annotated[str | None, Field(max_length=10)] = None,
+    page: Annotated[int, Field(ge=1, le=1000)] = 1,
+    per_page: Annotated[int, Field(ge=1, le=50)] = 50,
 ) -> dict[str, Any]:
     req_id = f"req_{uuid.uuid4().hex[:12]}"
     default_audit_logger.record(
@@ -546,8 +608,9 @@ async def list_sales_orders(
         "DO NOT use this for dispute rebuttal assembly (use 'get_order_fulfillment_evidence' instead)."
     ),
 )
+@_capture_tool_metrics
 async def get_sales_order(
-    salesorder_id: str,
+    salesorder_id: Annotated[str, Field(min_length=1, max_length=50)],
     include_pii: bool = False,
 ) -> dict[str, Any]:
     req_id = f"req_{uuid.uuid4().hex[:12]}"
@@ -611,12 +674,13 @@ async def get_sales_order(
         "Returns matching orders with an explicit 'match_basis' explaining how match occurred (FR-5.3)."
     ),
 )
+@_capture_tool_metrics
 async def search_sales_orders(
-    reference_number: str | None = None,
-    customer_email: str | None = None,
-    razorpay_order_id: str | None = None,
+    reference_number: Annotated[str | None, Field(max_length=64)] = None,
+    customer_email: Annotated[str | None, Field(max_length=100)] = None,
+    razorpay_order_id: Annotated[str | None, Field(max_length=64)] = None,
     include_pii: bool = False,
-    limit: int = 25,
+    limit: Annotated[int, Field(ge=1, le=25)] = 25,
 ) -> dict[str, Any]:
     req_id = f"req_{uuid.uuid4().hex[:12]}"
     default_audit_logger.record(
@@ -646,27 +710,56 @@ async def search_sales_orders(
                 reason="At least one of 'reference_number', 'razorpay_order_id', or 'customer_email' must be provided.",
             )
 
-        params: dict[str, str] = {"per_page": str(bounded_limit)}
-        match_basis = "reference_number_exact" if ref_clean else "customer_email"
-
+        orders_raw: list[dict[str, Any]] = []
+        match_basis = "no_match"
+        as_of = datetime.now(UTC).isoformat()
+        is_cached = False
         if ref_clean:
-            params["reference_number"] = ref_clean
-        elif email_clean:
-            params["customer_email"] = email_clean
-
-        data, is_cached, as_of = await get_client().get(
-            "/salesorders", params=params, cache_ttl=60.0
-        )
-        orders_raw = data.get("salesorders", [])
-
-        # Fallback search by search_text if reference_number query yielded 0
-        if not orders_raw and ref_clean:
-            params_fallback = {"search_text": ref_clean, "per_page": str(bounded_limit)}
             data, is_cached, as_of = await get_client().get(
-                "/salesorders", params=params_fallback, cache_ttl=60.0
+                "/salesorders",
+                params={"search_text": ref_clean, "per_page": str(bounded_limit)},
+                cache_ttl=60.0,
             )
-            orders_raw = data.get("salesorders", [])
-            match_basis = "search_text_substring"
+            orders_raw = [
+                order
+                for order in data.get("salesorders", [])
+                if str(order.get("reference_number", "")) == ref_clean
+            ]
+            match_basis = "reference_number_exact" if orders_raw else "no_match"
+        elif email_clean:
+            contacts_data, is_cached, as_of = await get_client().get(
+                "/contacts",
+                params={"email": email_clean, "per_page": "25"},
+                cache_ttl=60.0,
+            )
+            matching_contacts = [
+                contact
+                for contact in contacts_data.get("contacts", [])
+                if str(contact.get("email", "")).casefold() == email_clean.casefold()
+            ]
+            contact_ids = list(
+                dict.fromkeys(str(contact.get("contact_id", "")) for contact in matching_contacts)
+            )
+            contact_ids = [contact_id for contact_id in contact_ids if contact_id]
+            for contact_id in contact_ids[:5]:
+                clean_contact_id = ValidatedQueryBuilder.validate_numeric_id(
+                    contact_id, field_name="contact_id"
+                )
+                data, orders_cached, orders_as_of = await get_client().get(
+                    "/salesorders",
+                    params={"customer_id": clean_contact_id, "per_page": str(bounded_limit)},
+                    cache_ttl=60.0,
+                )
+                is_cached = is_cached and orders_cached
+                as_of = max(as_of, orders_as_of)
+                orders_raw.extend(data.get("salesorders", []))
+                if len(orders_raw) >= bounded_limit:
+                    break
+            match_basis = (
+                "contact_email_exact"
+                if len(contact_ids) == 1
+                else ("contact_email_multiple_contacts" if contact_ids else "no_match")
+            )
 
         projected = [
             SalesOrderProjection.from_raw_zoho(
@@ -721,11 +814,13 @@ async def search_sales_orders(
         "PRIMARY DECISION PRIMITIVE for Dispute Responder chargeback rebuttals (FR-5.4). "
         "Assembles cross-object fulfillment proof across sales order, tax invoice, packaging slip, "
         "carrier designation, tracking number, and delivery date. Never guesses absent fields. "
-        "Returns completeness: 'complete' (ready to submit), 'partial' (enumerates missing fields), or 'none'."
+        "Returns completeness: 'complete' (all fields in this connector's checklist were found), "
+        "'partial' (enumerates missing fields), or 'none'. Completeness does not determine whether a rebuttal is sufficient."
     ),
 )
+@_capture_tool_metrics
 async def get_order_fulfillment_evidence(
-    salesorder_id: str,
+    salesorder_id: Annotated[str, Field(min_length=1, max_length=50)],
     bypass_cache: bool = False,
 ) -> dict[str, Any]:
     req_id = f"req_{uuid.uuid4().hex[:12]}"

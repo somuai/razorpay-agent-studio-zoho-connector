@@ -1,7 +1,7 @@
 """Tests for Stdio Hygiene on the FastMCP server path (NFR-8).
 
-The MCP stdio server must never write unformatted or debug logs to stdout,
-as doing so corrupts the JSON-RPC protocol stream. All logging routes to stderr.
+The MCP stdio server must never write logs to stdout, as doing so corrupts the
+JSON-RPC protocol stream. Telemetry uses stderr; audit events use their own file.
 """
 
 import httpx
@@ -10,6 +10,7 @@ import pytest
 from mock_zoho.app import app
 from zoho_inventory_connector.auth.token_manager import TokenManager
 from zoho_inventory_connector.client.client import ZohoClient
+from zoho_inventory_connector.events.audit import default_audit_logger
 from zoho_inventory_connector.mcp_server.server import (
     get_stock_availability,
     list_items,
@@ -37,7 +38,8 @@ def setup_stdio_client() -> None:
 
 @pytest.mark.asyncio
 async def test_zero_stdout_pollution_on_server_path(capsys: pytest.CaptureFixture[str]) -> None:
-    """# NFR-8 AC: Zero output to stdout during tool execution; all logs route to stderr."""
+    """# NFR-8 AC: Zero output to stdout; telemetry and audit use separate sinks."""
+    default_audit_logger.clear()
     # Execute tools
     await list_items(page=1, per_page=5)
     await get_stock_availability(["item_1001", "item_1011"])
@@ -47,6 +49,7 @@ async def test_zero_stdout_pollution_on_server_path(capsys: pytest.CaptureFixtur
     # stdout MUST be completely empty
     assert captured.out == "", f"Stdout pollution detected: {captured.out!r}"
 
-    # stderr SHOULD contain telemetry and audit logs
+    # Telemetry is application stderr; audit data stays in its private sink.
     assert "[TELEMETRY]" in captured.err
-    assert "[AUDIT]" in captured.err
+    assert "[AUDIT]" not in captured.err
+    assert len(default_audit_logger.get_records()) == 2

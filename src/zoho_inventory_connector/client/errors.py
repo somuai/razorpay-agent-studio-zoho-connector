@@ -185,6 +185,31 @@ class UpstreamError(ConnectorError):
         )
 
 
+class InvalidResponseError(ConnectorError):
+    """Zoho returned a successful response with data that cannot be projected safely."""
+
+    def __init__(self, field: str) -> None:
+        super().__init__(
+            message=f"Zoho returned an invalid value for projected field '{field}'.",
+            agent_guidance="Do not use this result. Verify the Zoho response mapping and retry after it is corrected.",
+            retryable=False,
+            http_status=200,
+        )
+
+
+class AuditSinkError(ConnectorError):
+    """The invocation audit record could not be persisted; fail the tool closed."""
+
+    def __init__(self, tool: str, request_id: str) -> None:
+        self.tool = tool
+        self.request_id = request_id
+        super().__init__(
+            message="The tool audit record could not be saved, so this request was not run.",
+            agent_guidance="Ask the operator to restore the audit log destination before retrying.",
+            retryable=False,
+        )
+
+
 class InputValidationError(ConnectorError):
     """Tool input failed validation rules (FR-5.5, FR-13).
 

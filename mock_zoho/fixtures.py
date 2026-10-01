@@ -128,7 +128,7 @@ def generate_fixtures() -> dict[str, Any]:
         month = 8 if i <= 20 else 9
         date_str = f"2026-0{month}-{day:02d}"
 
-        cust_id = f"cust_{300 + (i % 15)}"
+        cust_id = f"cust_{300 + i}"
         cust_name = f"Test Customer {i:03d}"
         cust_email = f"customer_{i:03d}@example.com"
         cust_phone = f"+9198765{10000 + i}"

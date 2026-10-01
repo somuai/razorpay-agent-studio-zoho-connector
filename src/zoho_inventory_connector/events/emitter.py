@@ -11,6 +11,8 @@ import uuid
 from dataclasses import asdict, dataclass
 from datetime import UTC, datetime
 
+from zoho_inventory_connector.ratelimit.metrics import ACTIVE_TOOL_CALL_METRICS
+
 # Logger dedicated to telemetry events; outputs to stderr by default (NFR-8)
 _logger = logging.getLogger("zoho_connector.telemetry")
 
@@ -50,6 +52,10 @@ class ToolExecutionEvent:
         truncated: bool = False,
         request_id: str | None = None,
     ) -> "ToolExecutionEvent":
+        call_metrics = ACTIVE_TOOL_CALL_METRICS.get()
+        if call_metrics is not None:
+            throttled = call_metrics.throttled
+            retries = call_metrics.retries
         return cls(
             ts=datetime.now(UTC).isoformat(),
             event="tool_execution",

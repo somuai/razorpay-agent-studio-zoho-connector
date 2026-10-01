@@ -9,6 +9,9 @@ from mock_zoho.app import app
 from mock_zoho.faults import faults
 from zoho_inventory_connector.auth.token_manager import TokenManager
 from zoho_inventory_connector.client.client import ZohoClient
+from zoho_inventory_connector.client.errors import AuditSinkError, InvalidResponseError
+from zoho_inventory_connector.events.audit import AuditEvent, default_audit_logger
+from zoho_inventory_connector.events.emitter import default_emitter
 from zoho_inventory_connector.mcp_server.server import (
     MAX_OUTPUT_BYTES,
     _enforce_output_cap,
@@ -121,3 +124,85 @@ async def test_agent_error_messages() -> None:
     assert r_inj["error"] == "InputValidationError"
     assert "prohibited characters" in r_inj["agent_guidance"]
     assert r_inj["retryable"] is False
+
+
+@pytest.mark.asyncio
+async def test_customer_email_resolves_through_contacts() -> None:
+    """Email searches resolve an exact contact before fetching that customer's orders."""
+    result = await search_sales_orders(customer_email="customer_001@example.com", limit=5)
+
+    assert result["match_basis"] == "contact_email_exact"
+    assert result["count"] == 1
+    assert result["sales_orders"][0]["customer_email"] == "c***1@example.com"
+
+
+@pytest.mark.asyncio
+async def test_tool_argument_validation_errors_are_actionable() -> None:
+    """# FR-5/7/13: Tool-level bounds and required inputs fail without upstream calls."""
+    bad_page = await list_items(page=0)
+    assert bad_page["error"] == "InputValidationError"
+    assert "page" in bad_page["message"]
+
+    too_many_skus = await get_stock_availability([f"SKU{i}" for i in range(21)])
+    assert too_many_skus["error"] == "InputValidationError"
+    assert "20 items" in too_many_skus["message"]
+
+    missing_order_match = await search_sales_orders()
+    assert missing_order_match["error"] == "InputValidationError"
+    assert "At least one" in missing_order_match["message"]
+
+
+@pytest.mark.asyncio
+async def test_malformed_upstream_numeric_field_returns_typed_tool_error(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Malformed stock values become safe tool errors instead of escaping as ValueError."""
+    from zoho_inventory_connector.mcp_server import server
+
+    client = server.get_client()
+
+    async def malformed_get(*args: object, **kwargs: object) -> tuple[dict[str, object], bool, str]:
+        return (
+            {"items": [{"item_id": "item_1", "sku": "SKU-1", "actual_available_stock": "many"}]},
+            False,
+            "2026-10-01T00:00:00+00:00",
+        )
+
+    monkeypatch.setattr(client, "get", malformed_get)
+    result = await get_stock_availability(["SKU-1"], bypass_cache=True)
+    assert result["error"] == InvalidResponseError.__name__
+    assert "actual_available_stock" in result["message"]
+
+
+@pytest.mark.asyncio
+async def test_tool_event_captures_request_local_throttle_and_retries() -> None:
+    """# FR-8: Per-tool telemetry includes actual retry and throttle behavior."""
+    faults.inject_429_rate_limit = True
+    faults.retry_after_seconds = 0.01
+    previous_count = len(default_emitter.get_events())
+
+    result = await get_stock_availability(["item_1001"], bypass_cache=True)
+
+    event = default_emitter.get_events()[previous_count]
+    assert result["error"] == "RateLimitError"
+    assert event.tool == "get_stock_availability"
+    assert event.throttled is True
+    assert event.retries == 3
+
+
+@pytest.mark.asyncio
+async def test_tool_call_fails_closed_when_audit_sink_is_unavailable(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from zoho_inventory_connector.mcp_server import server
+
+    client = server.get_client()
+
+    def fail_audit(event: AuditEvent) -> None:
+        raise AuditSinkError(event.tool, event.request_id)
+
+    monkeypatch.setattr(default_audit_logger, "record", fail_audit)
+    result = await list_items(page=1, per_page=5)
+
+    assert result["error"] == "AuditSinkError"
+    assert client.metrics.calls_made == 0

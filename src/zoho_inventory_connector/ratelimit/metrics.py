@@ -1,8 +1,22 @@
 """Rate limiting and client telemetry metrics (FR-3.6)."""
 
 import asyncio
+from contextvars import ContextVar
 from dataclasses import dataclass, field
 from typing import Any
+
+
+@dataclass
+class ToolCallMetrics:
+    """Request-local retry counters attached to one MCP tool invocation."""
+
+    retries: int = 0
+    throttled: bool = False
+
+
+ACTIVE_TOOL_CALL_METRICS: ContextVar[ToolCallMetrics | None] = ContextVar(
+    "active_tool_call_metrics", default=None
+)
 
 
 @dataclass
@@ -28,10 +42,16 @@ class RateLimitMetrics:
     async def record_throttled(self) -> None:
         async with self._lock:
             self.calls_throttled += 1
+        call_metrics = ACTIVE_TOOL_CALL_METRICS.get()
+        if call_metrics is not None:
+            call_metrics.throttled = True
 
     async def record_retry(self) -> None:
         async with self._lock:
             self.calls_retried += 1
+        call_metrics = ACTIVE_TOOL_CALL_METRICS.get()
+        if call_metrics is not None:
+            call_metrics.retries += 1
 
     async def record_cache_hit(self) -> None:
         async with self._lock:

@@ -9,8 +9,10 @@ from zoho_inventory_connector.auth.token_manager import TokenManager
 from zoho_inventory_connector.client.client import ZohoClient
 from zoho_inventory_connector.client.errors import (
     AuthError,
+    CircuitOpenError,
     NotFoundError,
     QuotaExhaustedError,
+    RateLimitError,
     UpstreamError,
 )
 from zoho_inventory_connector.ratelimit.clock import VirtualClock
@@ -207,3 +209,118 @@ async def test_5xx_bounded_retries() -> None:
 
         # Retried max_retries times
         assert client.metrics.calls_retried == 2
+
+
+@pytest.mark.asyncio
+async def test_429_honors_retry_after_and_stops_after_bound() -> None:
+    """# FR-3.3: Respect Retry-After without real sleeping and bound retries."""
+    clock = VirtualClock()
+    started_at = clock.monotonic()
+    faults.inject_429_rate_limit = True
+    faults.retry_after_seconds = 4
+
+    async with httpx.AsyncClient(
+        transport=httpx.ASGITransport(app=app), base_url="http://test"
+    ) as http_c:
+        tm = TokenManager("client_id", "secret", "refresh", clock=clock, http_client=http_c)
+        tm._access_token = "zoho_access_mock_token_12345"
+        tm._expires_at_mono = clock.monotonic() + 3600
+        client = ZohoClient(
+            token_manager=tm,
+            org_id="org_kaveri_blr_001",
+            clock=clock,
+            http_client=http_c,
+            max_retries=1,
+            base_url_override="http://test/inventory/v1",
+        )
+        with pytest.raises(RateLimitError) as exc_info:
+            await client.get("/items")
+
+    assert exc_info.value.kind == "per_minute"
+    assert clock.monotonic() - started_at == 4
+    assert client.metrics.calls_retried == 1
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    ("fault_name", "error_type"),
+    [("inject_code_44_block", CircuitOpenError), ("inject_code_1070_concurrency", RateLimitError)],
+)
+async def test_org_block_and_concurrency_codes_fail_fast(
+    fault_name: str, error_type: type[Exception]
+) -> None:
+    """# FR-3.5: Org blocks trip the breaker and concurrency faults request lower parallelism."""
+    clock = VirtualClock()
+    setattr(faults, fault_name, True)
+
+    async with httpx.AsyncClient(
+        transport=httpx.ASGITransport(app=app), base_url="http://test"
+    ) as http_c:
+        tm = TokenManager("client_id", "secret", "refresh", clock=clock, http_client=http_c)
+        tm._access_token = "zoho_access_mock_token_12345"
+        tm._expires_at_mono = clock.monotonic() + 3600
+        client = ZohoClient(
+            token_manager=tm,
+            org_id="org_kaveri_blr_001",
+            clock=clock,
+            http_client=http_c,
+            base_url_override="http://test/inventory/v1",
+        )
+        with pytest.raises(error_type):
+            await client.get("/items")
+        if fault_name == "inject_code_44_block":
+            with pytest.raises(CircuitOpenError):
+                await client.get("/items")
+
+
+@pytest.mark.asyncio
+async def test_transport_error_retries_then_maps_to_upstream_error() -> None:
+    """# FR-2.4: Network failures use bounded retry and become a typed error."""
+    clock = VirtualClock()
+    attempts = 0
+
+    def fail_request(request: httpx.Request) -> httpx.Response:
+        nonlocal attempts
+        attempts += 1
+        raise httpx.ConnectError("offline", request=request)
+
+    async with httpx.AsyncClient(transport=httpx.MockTransport(fail_request)) as http_c:
+        tm = TokenManager("client_id", "secret", "refresh", clock=clock, http_client=http_c)
+        tm._access_token = "access"
+        tm._expires_at_mono = clock.monotonic() + 3600
+        client = ZohoClient(
+            token_manager=tm,
+            org_id="org",
+            clock=clock,
+            http_client=http_c,
+            max_retries=1,
+            base_url_override="https://inventory.invalid",
+        )
+        with pytest.raises(UpstreamError, match="Network error"):
+            await client.get("/items")
+
+    assert attempts == 2
+    assert client.metrics.calls_retried == 1
+
+
+@pytest.mark.asyncio
+async def test_unexpected_http_status_maps_to_upstream_error() -> None:
+    clock = VirtualClock()
+
+    def handler(_: httpx.Request) -> httpx.Response:
+        return httpx.Response(418, text="unexpected")
+
+    async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as http_c:
+        tm = TokenManager("client_id", "secret", "refresh", clock=clock, http_client=http_c)
+        tm._access_token = "access"
+        tm._expires_at_mono = clock.monotonic() + 3600
+        client = ZohoClient(
+            token_manager=tm,
+            org_id="org",
+            clock=clock,
+            http_client=http_c,
+            base_url_override="https://inventory.invalid",
+        )
+        with pytest.raises(UpstreamError) as exc_info:
+            await client.get("/items")
+    assert exc_info.value.http_status == 418

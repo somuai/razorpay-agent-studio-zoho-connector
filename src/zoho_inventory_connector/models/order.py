@@ -4,6 +4,8 @@ import re
 
 from pydantic import BaseModel, ConfigDict, Field
 
+from zoho_inventory_connector.client.parsing import parse_upstream_float
+
 
 def mask_email(email: str | None) -> str | None:
     """Mask email address for privacy (e.g. 'priya.sharma@example.com' -> 'p***a@example.com')."""
@@ -100,9 +102,13 @@ class SalesOrderProjection(BaseModel):
                             item_id=str(li.get("item_id") or ""),
                             sku=str(li.get("sku") or "") or None,
                             name=str(li.get("name") or "Item"),
-                            quantity=float(li.get("quantity") or 0.0),
-                            rate=float(li.get("rate") or 0.0),
-                            item_total=float(li.get("item_total") or 0.0),
+                            quantity=parse_upstream_float(
+                                li.get("quantity"), "line_items.quantity"
+                            ),
+                            rate=parse_upstream_float(li.get("rate"), "line_items.rate"),
+                            item_total=parse_upstream_float(
+                                li.get("item_total"), "line_items.item_total"
+                            ),
                         )
                     )
 
@@ -116,7 +122,7 @@ class SalesOrderProjection(BaseModel):
             customer_email=email,
             customer_phone=phone,
             reference_number=str(raw.get("reference_number") or "") or None,
-            total_amount=float(str(raw.get("total") or 0.0)),
+            total_amount=parse_upstream_float(raw.get("total"), "total"),
             currency_code=str(raw.get("currency_code") or "INR"),
             line_items_count=len(items_list),
             line_items=items_list,

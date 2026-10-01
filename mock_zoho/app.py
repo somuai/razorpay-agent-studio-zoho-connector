@@ -314,6 +314,59 @@ async def list_sales_orders(
     }
 
 
+@app.get("/inventory/v1/contacts")
+async def list_contacts(
+    page: int = Query(1, ge=1),
+    per_page: int = Query(50, ge=1, le=200),
+    email: str | None = Query(None),
+    contact_name: str | None = Query(None),
+    search_text: str | None = Query(None),
+    organization_id: str | None = Query(None),
+    authorization: str | None = Header(None),
+) -> Any:
+    """Expose fictional contact records for documented email-to-order matching."""
+    fault = _check_faults_and_auth(authorization)
+    if fault:
+        return fault
+
+    unique: dict[str, dict[str, str]] = {}
+    for order in FIXTURES["sales_orders"]:
+        contact_id = str(order.get("customer_id", ""))
+        if contact_id:
+            unique[contact_id] = {
+                "contact_id": contact_id,
+                "contact_name": str(order.get("customer_name", "")),
+                "email": str(order.get("customer_email", "")),
+            }
+    contacts = list(unique.values())
+    if email:
+        contacts = [
+            contact for contact in contacts if contact["email"].casefold() == email.casefold()
+        ]
+    if contact_name:
+        contacts = [contact for contact in contacts if contact["contact_name"] == contact_name]
+    if search_text:
+        query = search_text.casefold()
+        contacts = [
+            contact
+            for contact in contacts
+            if query in contact["contact_name"].casefold() or query in contact["email"].casefold()
+        ]
+    start = (page - 1) * per_page
+    page_contacts = contacts[start : start + per_page]
+    return {
+        "code": 0,
+        "message": "success",
+        "contacts": page_contacts,
+        "page_context": {
+            "page": page,
+            "per_page": per_page,
+            "has_more_page": start + per_page < len(contacts),
+            "total": len(contacts),
+        },
+    }
+
+
 @app.get("/inventory/v1/salesorders/{salesorder_id}")
 async def get_sales_order(
     salesorder_id: str,
