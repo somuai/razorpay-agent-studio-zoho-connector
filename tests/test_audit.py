@@ -29,7 +29,7 @@ def test_sanitize_audit_params_pii_and_secrets() -> None:
     sanitized = sanitize_audit_params(params)
     assert sanitized["customer_email"] == "a***o@example.com"
     assert sanitized["customer_phone"] == "******2345"
-    assert sanitized["reference_number"] == "order_Rzp_001"
+    assert sanitized["reference_number"] == "[MASKED]"
     assert sanitized["query"] == "[OMITTED]"
     assert sanitized["auth_token"] == "[REDACTED_SECRET]"
     assert sanitized["client_secret"] == "[REDACTED_SECRET]"

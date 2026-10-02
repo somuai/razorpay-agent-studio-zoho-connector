@@ -5,10 +5,38 @@ over 200 seeded fictional cart abandonment events.
 """
 
 import math
+import random
 from typing import Any
 
 from zoho_inventory_connector.models.item import StockStatus
 from zoho_inventory_connector.services.stock_service import StockService
+
+
+def sensitivity_sweep(cart_events: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Reassign fictional out-of-stock labels at fixed rates; this is not impact evidence."""
+    total = len(cart_events)
+    permutation = list(range(total))
+    random.Random(42).shuffle(permutation)
+    rates = (0.02, 0.05, 0.10, 0.27)
+    result = []
+    for rate in rates:
+        count = round(total * rate)
+        selected = permutation[:count]
+        wasted = round(sum(cart_events[index]["discount_offered_inr"] for index in selected), 2)
+        result.append(
+            {
+                "simulation_mode": "SIMULATED",
+                "out_of_stock_rate_pct": int(rate * 100),
+                "cart_count": total,
+                "out_of_stock_carts": count,
+                "baseline_unavailable_nudges": count,
+                "connector_aware_unavailable_nudges": 0,
+                "baseline_wasted_discount_inr": wasted,
+                "connector_aware_wasted_discount_inr": 0.0,
+                "method": "Seeded permutation of the 200 fictional cart discount offers; policy suppresses every cart labeled out of stock.",
+            }
+        )
+    return result
 
 
 async def run_nudge_simulation(
@@ -143,6 +171,7 @@ async def run_nudge_simulation(
 
     return {
         "simulation_mode": "SIMULATED",
+        "sensitivity_sweep": sensitivity_sweep(cart_events),
         "total_cart_events": total_carts,
         "baseline_policy": {
             "nudges_sent": baseline_nudges_sent,

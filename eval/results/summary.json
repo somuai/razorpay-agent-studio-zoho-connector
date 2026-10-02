@@ -20,7 +20,7 @@
     },
     "ops_impact": {
       "api_calls_per_dispute_case": 2.1,
-      "auto_rebuttal_ready_cases": 18,
+      "evidence_checklist_complete_cases": 18,
       "ops_assisted_cases": 22,
       "unsupported_cases": 0,
       "upstream_api_calls": 84,
@@ -72,8 +72,77 @@
       "tool_latency_p95_ms_virtual_clock": 0.0,
       "zoho_free_tier_quota_consumed_pct": 3.0
     },
+    "sensitivity_sweep": [
+      {
+        "baseline_unavailable_nudges": 4,
+        "baseline_wasted_discount_inr": 924.6,
+        "cart_count": 200,
+        "connector_aware_unavailable_nudges": 0,
+        "connector_aware_wasted_discount_inr": 0.0,
+        "method": "Seeded permutation of the 200 fictional cart discount offers; policy suppresses every cart labeled out of stock.",
+        "out_of_stock_carts": 4,
+        "out_of_stock_rate_pct": 2,
+        "simulation_mode": "SIMULATED"
+      },
+      {
+        "baseline_unavailable_nudges": 10,
+        "baseline_wasted_discount_inr": 2389.0,
+        "cart_count": 200,
+        "connector_aware_unavailable_nudges": 0,
+        "connector_aware_wasted_discount_inr": 0.0,
+        "method": "Seeded permutation of the 200 fictional cart discount offers; policy suppresses every cart labeled out of stock.",
+        "out_of_stock_carts": 10,
+        "out_of_stock_rate_pct": 5,
+        "simulation_mode": "SIMULATED"
+      },
+      {
+        "baseline_unavailable_nudges": 20,
+        "baseline_wasted_discount_inr": 4493.3,
+        "cart_count": 200,
+        "connector_aware_unavailable_nudges": 0,
+        "connector_aware_wasted_discount_inr": 0.0,
+        "method": "Seeded permutation of the 200 fictional cart discount offers; policy suppresses every cart labeled out of stock.",
+        "out_of_stock_carts": 20,
+        "out_of_stock_rate_pct": 10,
+        "simulation_mode": "SIMULATED"
+      },
+      {
+        "baseline_unavailable_nudges": 54,
+        "baseline_wasted_discount_inr": 13315.4,
+        "cart_count": 200,
+        "connector_aware_unavailable_nudges": 0,
+        "connector_aware_wasted_discount_inr": 0.0,
+        "method": "Seeded permutation of the 200 fictional cart discount offers; policy suppresses every cart labeled out of stock.",
+        "out_of_stock_carts": 54,
+        "out_of_stock_rate_pct": 27,
+        "simulation_mode": "SIMULATED"
+      }
+    ],
     "simulation_mode": "SIMULATED",
     "total_cart_events": 200
+  },
+  "quota_feasibility": {
+    "assumption": "The connector is the only consumer of its allocated share; capacity falls with shared org usage and changes with calls per decision/cache behavior.",
+    "calls_per_decision": 0.15,
+    "daily_quota_assumption": 1000,
+    "rows": [
+      {
+        "calls_available": 1000,
+        "decisions_per_day": 6666,
+        "quota_available_pct": 100
+      },
+      {
+        "calls_available": 500,
+        "decisions_per_day": 3333,
+        "quota_available_pct": 50
+      },
+      {
+        "calls_available": 250,
+        "decisions_per_day": 1666,
+        "quota_available_pct": 25
+      }
+    ],
+    "simulation_mode": "SIMULATED"
   },
   "seed": 42,
   "simulation_mode": "SIMULATED",

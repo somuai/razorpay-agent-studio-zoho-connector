@@ -77,6 +77,23 @@ async def main() -> None:
             "NEVER CONSTRUE AS PRODUCTION RESULTS."
         ),
         "seed": 42,
+        "quota_feasibility": {
+            "simulation_mode": "SIMULATED",
+            "daily_quota_assumption": 1000,
+            "calls_per_decision": nudge_results["efficiency_and_cost"]["api_calls_per_decision"],
+            "rows": [
+                {
+                    "quota_available_pct": pct,
+                    "calls_available": int(1000 * pct / 100),
+                    "decisions_per_day": int(
+                        (1000 * pct / 100)
+                        / nudge_results["efficiency_and_cost"]["api_calls_per_decision"]
+                    ),
+                }
+                for pct in (100, 50, 25)
+            ],
+            "assumption": "The connector is the only consumer of its allocated share; capacity falls with shared org usage and changes with calls per decision/cache behavior.",
+        },
         "metrics_summary": {
             "M1_wasted_nudges_baseline_pct": nudge_results["baseline_policy"]["wasted_nudges_pct"],
             "M1_wasted_nudges_connector_pct": nudge_results["connector_aware_policy"][
@@ -135,7 +152,10 @@ async def main() -> None:
     print("Mode: SIMULATED | Merchant: Kaveri Home Goods (Fictional) | Seed: 42")
     print("=" * 80 + "\n")
 
-    print("### METRIC 1: Abandoned Cart Nudge Optimization (N = 200 Carts)\n")
+    print("### METRIC 1: SIMULATED mechanism check (N = 200 fictional carts)\n")
+    print(
+        "The baseline fixture labels 27% of carts out of stock. The connector-aware zero is guaranteed by the policy rule that suppresses every cart labeled out of stock; neither is measured merchant impact.\n"
+    )
     print(
         "| Metric / Policy Attribute | Baseline Policy (Unaware) | Connector-Aware Agent | Delta / Impact |"
     )
@@ -147,23 +167,33 @@ async def main() -> None:
         f"| Nudges to carts with no out-of-stock item | {base['correctly_nudged_count']} | {conn['correctly_nudged_count']} | Seeded availability only; low-stock treatment differs by policy |"
     )
     print(
-        f"| Wasted Nudges (Sent for Unavailable SKUs) | {base['wasted_nudges_count']} ({base['wasted_nudges_pct']}%) | **{conn['wasted_nudges_count']} ({conn['wasted_nudges_pct']}%)** | **-{base['wasted_nudges_pct']}% (Eliminated)** |"
+        f"| Wasted Nudges (Sent for Unavailable SKUs) | {base['wasted_nudges_count']} ({base['wasted_nudges_pct']}%) | {conn['wasted_nudges_count']} ({conn['wasted_nudges_pct']}%) | Policy mechanism check only |"
     )
     print(
         f"| Scarcity Nudges (No Discount Offered) | 0 | {conn['scarcity_no_discount_nudges']} | Driven by stock urgency |"
     )
     print(
-        f"| Total Discount Disbursed (Fictional INR) | ₹{base['total_discount_disbursed_inr']:,.2f} | ₹{conn['total_discount_disbursed_inr']:,.2f} | ₹{conn['discount_budget_saved_inr']:,.2f} saved |"
+        f"| Total Discount Disbursed (Fictional INR) | ₹{base['total_discount_disbursed_inr']:,.2f} | ₹{conn['total_discount_disbursed_inr']:,.2f} | ₹{conn['discount_budget_saved_inr']:,.2f} difference in fictional policy arithmetic |"
     )
     print(
-        f"| Wasted Discount on Zero Stock (Fictional INR) | ₹{base['wasted_discount_inr']:,.2f} | **₹{conn['wasted_discount_inr']:,.2f}** | **100% budget waste eliminated** |"
+        f"| Wasted Discount on Zero Stock (Fictional INR) | ₹{base['wasted_discount_inr']:,.2f} | ₹{conn['wasted_discount_inr']:,.2f} | SIMULATED fixture arithmetic |"
     )
+
+    print("\n### SIMULATED sensitivity sweep (same fictional discount offers; seed 42)\n")
+    print(
+        "| Out-of-stock share assumption | Unavailable nudges: baseline → aware | Wasted discount (fictional INR): baseline → aware |"
+    )
+    print("|---:|---:|---:|")
+    for row in nudge_results["sensitivity_sweep"]:
+        print(
+            f"| {row['out_of_stock_rate_pct']}% | {row['baseline_unavailable_nudges']} → {row['connector_aware_unavailable_nudges']} | ₹{row['baseline_wasted_discount_inr']:,.2f} → ₹{row['connector_aware_wasted_discount_inr']:,.2f} |"
+        )
 
     print("\n### METRIC 2: Chargeback Dispute Evidence Completeness (N = 40 Cases)\n")
     print("| Evidence Classification | Cases | Pct (%) | Ops Workflow Action |")
     print("|---|:---:|:---:|---|")
     print(
-        f"| Complete Evidence (Order + Invoice + Tracking + Delivery) | {disp['complete_evidence_count']} | **{disp['complete_evidence_pct']}%** | Evidence bundle ready for ops review; connector does not submit rebuttals |"
+        f"| Complete in mock fields (includes fictional delivery_date) | {disp['complete_evidence_count']} | **{disp['complete_evidence_pct']}%** | Fixture completeness only; does not prove live Zoho/carrier delivery evidence |"
     )
     print(
         f"| Partial Evidence (Missing tracking / delivery confirmation) | {disp['partial_evidence_count']} | **{disp['partial_evidence_pct']}%** | Ops triage with exact missing fields flagged |"
@@ -194,6 +224,18 @@ async def main() -> None:
     print(
         f"- Combined quota estimate for both separate simulations: "
         f"{summary['metrics_summary']['M3_total_quota_both_sims_pct']}% of 1,000 requests/day"
+    )
+    print("\n### SIMULATED quota feasibility (1,000 calls/day cap assumption)\n")
+    print(
+        "| Share available to connector | Calls/day available | Decisions/day at 0.15 calls/decision |"
+    )
+    print("|---:|---:|---:|")
+    for row in summary["quota_feasibility"]["rows"]:
+        print(
+            f"| {row['quota_available_pct']}% | {row['calls_available']} | {row['decisions_per_day']:,} |"
+        )
+    print(
+        "Assumes no other connector consumes this allocation; shared usage and cache behavior change capacity.\n"
     )
     print("\n" + "=" * 80)
     print("ALL RESULTS ARE SIMULATED. End of Evaluation Report.")

@@ -39,6 +39,16 @@ async def test_eval_harness_determinism_and_labels(tmp_path: Path) -> None:
     assert m["M3_cart_api_calls_per_decision"] < 0.5
     assert m["M3_cache_hit_pct"] >= 80.0
 
+    sweep = summary_1["nudge_simulation"]["sensitivity_sweep"]
+    assert [row["out_of_stock_rate_pct"] for row in sweep] == [2, 5, 10, 27]
+    assert [row["baseline_unavailable_nudges"] for row in sweep] == [4, 10, 20, 54]
+    assert all(row["connector_aware_unavailable_nudges"] == 0 for row in sweep)
+    assert [row["decisions_per_day"] for row in summary_1["quota_feasibility"]["rows"]] == [
+        6666,
+        3333,
+        1666,
+    ]
+
     # Rerun and verify byte-identical reproduction
     with open(summary_file, encoding="utf-8") as f:
         raw_1 = f.read()

@@ -237,7 +237,8 @@ class DisputeService:
             completeness = EvidenceCompleteness.COMPLETE
             summary = (
                 f"Order {so_num} fulfilled successfully via {carrier_field.value} "
-                f"(Tracking #{tracking_field.value}). Confirmed delivered on {delivery_date_field.value}."
+                f"(Tracking #{tracking_field.value}). Zoho record lists delivery date {delivery_date_field.value}; "
+                "carrier confirmation is not independently verified."
             )
         else:
             completeness = EvidenceCompleteness.PARTIAL

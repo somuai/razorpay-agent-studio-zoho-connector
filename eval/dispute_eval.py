@@ -70,7 +70,7 @@ async def run_dispute_evaluation(
         },
         "missing_fields_breakdown": dict(missing_fields_counter),
         "ops_impact": {
-            "auto_rebuttal_ready_cases": complete_count,
+            "evidence_checklist_complete_cases": complete_count,
             "ops_assisted_cases": partial_count,
             "unsupported_cases": none_count,
             "api_calls_per_dispute_case": calls_per_case,

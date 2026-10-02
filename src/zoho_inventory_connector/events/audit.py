@@ -29,6 +29,14 @@ def sanitize_audit_params(params: dict[str, Any]) -> dict[str, Any]:
             sanitized[key] = mask_phone(val)
         elif lower_k in {"query", "search", "search_text", "free_text"}:
             sanitized[key] = "[OMITTED]"
+        elif lower_k in {
+            "reference_number",
+            "razorpay_order_id",
+            "salesorder_id",
+            "item_id",
+            "customer_id",
+        }:
+            sanitized[key] = "[MASKED]"
         else:
             sanitized[key] = val
     return sanitized

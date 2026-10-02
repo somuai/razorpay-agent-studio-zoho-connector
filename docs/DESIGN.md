@@ -28,6 +28,8 @@ flowchart LR
 
 The stock service uses an explicit `actual_available_stock` value or a single-location `location_actual_available_stock` value; it never substitutes physical `stock_on_hand`. If the available quantity is ambiguous across several locations, it returns `unknown`. Low stock uses `reorder_level` or a configurable default. These are code-level rules, not a verified definition of sellability for a merchant. The evidence service marks absent fields unavailable and preserves typed upstream errors rather than presenting them as empty evidence; delivery time and merchant-specific linkage still require live validation. See [Limitations](LIMITATIONS.md).
 
+**Delivery-proof gap:** the reviewed Zoho shipment schema documents status, carrier and tracking number, but no delivered-at timestamp. A Zoho-only lookup cannot provide carrier-confirmed delivery proof for a chargeback. The production direction is a carrier-tracking integration, after discovery confirms which carriers and evidence fields the merchant needs.
+
 The app-facing server is FastMCP over stdio. Tool telemetry goes to stderr; PII-minimized audit events go to a separate mode-0600 JSONL file selected by `ZOHO_AUDIT_LOG_FILE`. These local sinks still need deployment-level access and retention controls. The checked-in `mcp/tool_spec.json` is generated from the server's registered tool schemas.
 
 ## What I chose not to build and why
@@ -44,7 +46,7 @@ The app-facing server is FastMCP over stdio. Tool telemetry goes to stderr; PII-
 ## Production extensions tied to M1–M3
 
 - **M1, wasted nudges:** validate which Zoho stock quantity means sellable for the merchant; measure stock freshness at decision time; add cache invalidation if 60-second staleness changes suppression decisions. Pilot against a control group before changing discount policy.
-- **M2, evidence completeness:** map the merchant's actual package and carrier process, find where delivery confirmation is recorded, and measure missing fields by source. Add only verified integrations needed to fill gaps; never infer delivery.
+- **M2, evidence completeness:** map the merchant's actual package and carrier process, find where delivery confirmation is recorded, and measure missing fields by source. Zoho status/tracking alone is not carrier-confirmed delivery proof; add a verified carrier-tracking integration if the evidence gap is material. Never infer delivery.
 - **M3, cost and quota:** compare agent request volume with all Zoho consumers, export call/cache/retry metrics, and use a shared limiter if running multiple replicas. Agree on a quota budget and stop conditions with operations.
 
 ## Current project readiness
