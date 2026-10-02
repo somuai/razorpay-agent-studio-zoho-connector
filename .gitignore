@@ -36,6 +36,7 @@ htmlcov/
 .env
 .env.*
 !.env.example
+live_expected.yaml
 *.token
 *.token.json
 zoho_token.json

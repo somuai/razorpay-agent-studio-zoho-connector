@@ -1,0 +1,22 @@
+{
+  "format_note": "JSON is a valid YAML subset; edit this file and save as live_expected.yaml.",
+  "items": [
+    {"sku": "KHG-001", "expect": {"status": "out_of_stock"}},
+    {"sku": "KHG-002", "expect": {"status": "in_stock"}},
+    {"sku": "KHG-003", "expect": {"status": "in_stock"}},
+    {"sku": "KHG-004", "expect": {"status": "in_stock"}},
+    {"sku": "KHG-005", "expect": {"status": "in_stock"}},
+    {"sku": "KHG-006", "expect": {"status": "in_stock"}},
+    {"sku": "KHG-007", "expect": {"status": "in_stock"}},
+    {"sku": "KHG-008", "expect": {"status": "low_stock"}},
+    {"sku": "KHG-009", "expect": {"status": "low_stock"}},
+    {"sku": "KHG-010", "expect": {"status": "out_of_stock"}}
+  ],
+  "orders": [
+    {"reference_number": "RZP-TEST-001", "expect": {"found": true, "completeness": "partial", "missing_fields": ["delivery_date"], "delivery_proof": "not_available"}},
+    {"reference_number": "RZP-TEST-002", "expect": {"found": true, "completeness": "partial", "missing_fields": ["delivery_date"], "delivery_proof": "not_available"}},
+    {"reference_number": "RZP-TEST-003", "expect": {"found": true, "completeness": "partial", "missing_fields": ["delivery_date"], "delivery_proof": "not_available"}},
+    {"reference_number": "RZP-TEST-004", "expect": {"found": true, "completeness": "partial", "missing_fields": ["carrier", "delivery_date", "shipment_date", "tracking_number"], "delivery_proof": "not_available"}},
+    {"reference_number": "RZP-TEST-005", "expect": {"found": true, "completeness": "partial", "missing_fields": ["carrier", "delivery_date", "package", "shipment_date", "tracking_number"], "delivery_proof": "not_available"}}
+  ]
+}
