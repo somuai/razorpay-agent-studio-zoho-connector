@@ -20,6 +20,7 @@ from zoho_inventory_connector.client.errors import (
     RateLimitError,
     UpstreamError,
 )
+from zoho_inventory_connector.client.transport_diagnostics import transport_diagnostic
 from zoho_inventory_connector.ratelimit.circuit_breaker import CircuitBreaker
 from zoho_inventory_connector.ratelimit.clock import Clock, SystemClock
 from zoho_inventory_connector.ratelimit.metrics import RateLimitMetrics
@@ -131,6 +132,7 @@ class ZohoClient:
                         raise UpstreamError(
                             "Network error connecting to Zoho Inventory.",
                             http_status=None,
+                            transport_diagnostic=transport_diagnostic(err, full_url, attempt),
                         ) from err
                     await self.metrics.record_retry()
                     backoff = random.uniform(0.0, min(8.0, (2 ** (attempt - 1)) * 0.5))

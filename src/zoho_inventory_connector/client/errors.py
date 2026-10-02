@@ -35,6 +35,9 @@ class ConnectorError(Exception):
             data["zoho_code"] = self.zoho_code
         if self.http_status is not None:
             data["http_status"] = self.http_status
+        diagnostic = getattr(self, "transport_diagnostic", None)
+        if diagnostic is not None:
+            data["transport_diagnostic"] = diagnostic
         return data
 
 
@@ -47,6 +50,7 @@ class AuthError(ConnectorError):
         agent_guidance: str = "Authentication with Zoho failed; ask the merchant or user to reconnect credentials.",
         http_status: int = 401,
         zoho_code: int | None = None,
+        transport_diagnostic: dict[str, object] | None = None,
     ) -> None:
         super().__init__(
             message=message,
@@ -55,6 +59,7 @@ class AuthError(ConnectorError):
             http_status=http_status,
             zoho_code=zoho_code,
         )
+        self.transport_diagnostic = transport_diagnostic
 
 
 class RateLimitError(ConnectorError):
@@ -174,6 +179,7 @@ class UpstreamError(ConnectorError):
         agent_guidance: str = "Zoho service is temporarily unavailable; do not guess data. Try again later.",
         http_status: int | None = 500,
         zoho_code: int | None = None,
+        transport_diagnostic: dict[str, object] | None = None,
     ) -> None:
         super().__init__(
             message=message,
@@ -183,6 +189,7 @@ class UpstreamError(ConnectorError):
             http_status=http_status,
             zoho_code=zoho_code,
         )
+        self.transport_diagnostic = transport_diagnostic
 
 
 class InvalidResponseError(ConnectorError):

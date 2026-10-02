@@ -9,6 +9,7 @@ from typing import Any, cast
 import httpx
 
 from zoho_inventory_connector.client.errors import AuthError
+from zoho_inventory_connector.client.transport_diagnostics import transport_diagnostic
 
 DC_ACCOUNTS_MAP: dict[str, str] = {
     "in": "https://accounts.zoho.in",
@@ -132,6 +133,7 @@ async def exchange_code_for_tokens(
             raise AuthError(
                 message=f"Zoho Accounts exchange failed ({type(exc).__name__}).",
                 http_status=502,
+                transport_diagnostic=transport_diagnostic(exc, token_url, attempt=1),
             ) from None
         if res.status_code != 200:
             raise AuthError(
@@ -170,6 +172,7 @@ async def refresh_access_token(
             raise AuthError(
                 message=f"Zoho Accounts refresh failed ({type(exc).__name__}).",
                 http_status=502,
+                transport_diagnostic=transport_diagnostic(exc, token_url, attempt=1),
             ) from None
         if res.status_code != 200:
             raise AuthError(

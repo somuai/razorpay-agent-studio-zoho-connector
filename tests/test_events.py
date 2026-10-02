@@ -1,11 +1,13 @@
 """Unit tests for structured instrumentation events (FR-8)."""
 
 import json
+import re
 
 from zoho_inventory_connector.events.emitter import (
     EventEmitter,
     ToolExecutionEvent,
 )
+from zoho_inventory_connector.events.logging_safety import new_request_id
 
 
 def test_tool_execution_event_schema() -> None:
@@ -62,3 +64,9 @@ def test_event_emitter_sink() -> None:
     assert len(emitter.get_events()) == 1
     emitter.clear()
     assert len(emitter.get_events()) == 0
+
+
+def test_generated_request_id_does_not_trigger_long_number_scan() -> None:
+    request_id = new_request_id()
+    assert request_id.startswith("req_")
+    assert not any(len(run) >= 8 for run in re.findall(r"\d+", request_id))

@@ -3,7 +3,6 @@
 import json
 import os
 import sys
-import uuid
 from collections.abc import Awaitable, Callable
 from datetime import UTC, datetime
 from functools import wraps
@@ -27,6 +26,7 @@ from zoho_inventory_connector.client.parsing import (
 from zoho_inventory_connector.client.query_builder import ValidatedQueryBuilder
 from zoho_inventory_connector.events.audit import AuditEvent, default_audit_logger
 from zoho_inventory_connector.events.emitter import ToolExecutionEvent, default_emitter
+from zoho_inventory_connector.events.logging_safety import new_request_id
 from zoho_inventory_connector.models.order import SalesOrderProjection
 from zoho_inventory_connector.ratelimit.metrics import ACTIVE_TOOL_CALL_METRICS, ToolCallMetrics
 from zoho_inventory_connector.services.dispute_service import DisputeService
@@ -188,7 +188,7 @@ async def list_items(
     per_page: Annotated[int, Field(ge=1, le=50)] = 50,
     status: str | None = None,
 ) -> dict[str, Any]:
-    req_id = f"req_{uuid.uuid4().hex[:12]}"
+    req_id = new_request_id()
     default_audit_logger.record(
         AuditEvent.create(
             "list_items", {"page": page, "per_page": per_page, "status": status}, req_id
@@ -289,7 +289,7 @@ async def list_items(
 )
 @_capture_tool_metrics
 async def get_item(item_id: str) -> dict[str, Any]:
-    req_id = f"req_{uuid.uuid4().hex[:12]}"
+    req_id = new_request_id()
     default_audit_logger.record(AuditEvent.create("get_item", {"item_id": item_id}, req_id))
     start_mono = get_client().clock.monotonic()
 
@@ -367,7 +367,7 @@ async def search_items(
     only_low_stock: bool = False,
     limit: Annotated[int, Field(ge=1, le=25)] = 25,
 ) -> dict[str, Any]:
-    req_id = f"req_{uuid.uuid4().hex[:12]}"
+    req_id = new_request_id()
     default_audit_logger.record(
         AuditEvent.create("search_items", {"query": query, "sku": sku, "limit": limit}, req_id)
     )
@@ -473,7 +473,7 @@ async def get_stock_availability(
     skus_or_ids: Annotated[list[str], Field(min_length=1, max_length=20)],
     bypass_cache: bool = False,
 ) -> dict[str, Any]:
-    req_id = f"req_{uuid.uuid4().hex[:12]}"
+    req_id = new_request_id()
     default_audit_logger.record(
         AuditEvent.create("get_stock_availability", {"skus_or_ids": skus_or_ids}, req_id)
     )
@@ -538,7 +538,7 @@ async def list_sales_orders(
     page: Annotated[int, Field(ge=1, le=1000)] = 1,
     per_page: Annotated[int, Field(ge=1, le=50)] = 50,
 ) -> dict[str, Any]:
-    req_id = f"req_{uuid.uuid4().hex[:12]}"
+    req_id = new_request_id()
     default_audit_logger.record(
         AuditEvent.create("list_sales_orders", {"status": status, "page": page}, req_id)
     )
@@ -657,7 +657,7 @@ async def get_sales_order(
     salesorder_id: Annotated[str, Field(min_length=1, max_length=50)],
     include_pii: bool = False,
 ) -> dict[str, Any]:
-    req_id = f"req_{uuid.uuid4().hex[:12]}"
+    req_id = new_request_id()
     default_audit_logger.record(
         AuditEvent.create(
             "get_sales_order", {"salesorder_id": salesorder_id, "include_pii": include_pii}, req_id
@@ -726,7 +726,7 @@ async def search_sales_orders(
     include_pii: bool = False,
     limit: Annotated[int, Field(ge=1, le=25)] = 25,
 ) -> dict[str, Any]:
-    req_id = f"req_{uuid.uuid4().hex[:12]}"
+    req_id = new_request_id()
     default_audit_logger.record(
         AuditEvent.create(
             "search_sales_orders",
@@ -867,7 +867,7 @@ async def get_order_fulfillment_evidence(
     salesorder_id: Annotated[str, Field(min_length=1, max_length=50)],
     bypass_cache: bool = False,
 ) -> dict[str, Any]:
-    req_id = f"req_{uuid.uuid4().hex[:12]}"
+    req_id = new_request_id()
     default_audit_logger.record(
         AuditEvent.create(
             "get_order_fulfillment_evidence", {"salesorder_id": salesorder_id}, req_id

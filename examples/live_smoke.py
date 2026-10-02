@@ -17,11 +17,15 @@ from zoho_inventory_connector.mcp_server import server
 def _summary(result: Mapping[str, Any]) -> dict[str, Any]:
     """Return only low-risk metadata suitable for a screenshot or terminal capture."""
     if "error" in result:
-        return {
+        summary = {
             "status": "error",
             "error": "ConnectorError",
             "retryable": bool(result.get("retryable", False)),
         }
+        diagnostic = result.get("transport_diagnostic")
+        if isinstance(diagnostic, Mapping):
+            summary["transport_diagnostic"] = dict(diagnostic)
+        return summary
 
     summary: dict[str, Any] = {"status": "ok"}
     for key in ("count", "page", "has_more", "completeness", "as_of", "cached"):

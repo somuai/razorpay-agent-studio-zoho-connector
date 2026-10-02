@@ -7,11 +7,10 @@ authorization tokens, and customer secrets.
 import json
 import logging
 import sys
-import uuid
 from dataclasses import asdict, dataclass
 from datetime import UTC, datetime
 
-from zoho_inventory_connector.events.logging_safety import redact_text
+from zoho_inventory_connector.events.logging_safety import new_request_id, redact_text
 from zoho_inventory_connector.ratelimit.metrics import ACTIVE_TOOL_CALL_METRICS
 
 # Logger dedicated to telemetry events; outputs to stderr by default (NFR-8)
@@ -71,7 +70,7 @@ class ToolExecutionEvent:
             stock_status=stock_status,
             result_count=result_count,
             truncated=truncated,
-            request_id=request_id or f"req_{uuid.uuid4().hex[:12]}",
+            request_id=request_id or new_request_id(),
         )
 
     def to_json(self) -> str:

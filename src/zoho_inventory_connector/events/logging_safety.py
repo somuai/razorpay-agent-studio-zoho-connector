@@ -5,6 +5,7 @@ from __future__ import annotations
 import logging
 import re
 import traceback
+import uuid
 from typing import Any, cast
 
 _SECRET_ASSIGNMENT = re.compile(
@@ -19,6 +20,14 @@ _FACTORY_INSTALLED = False
 _STANDARD_LOG_RECORD_FIELDS = frozenset(
     logging.LogRecord("", logging.INFO, "", 0, "", (), None).__dict__
 )
+
+
+def new_request_id() -> str:
+    """Create a correlation ID that cannot resemble a long numeric record ID."""
+    # Mapping hexadecimal digits to letters keeps IDs opaque while ensuring they
+    # never trigger numeric-ID scanners or resemble Zoho organization/record IDs.
+    letters_only = uuid.uuid4().hex[:12].translate(str.maketrans("0123456789", "abcdefghij"))
+    return f"req_{letters_only}"
 
 
 def _last_three(value: str) -> str:

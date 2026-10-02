@@ -16,6 +16,8 @@ import httpx
 
 from zoho_inventory_connector.auth.oauth import DC_API_MAP
 from zoho_inventory_connector.auth.token_manager import TokenManager
+from zoho_inventory_connector.client.errors import AuthError
+from zoho_inventory_connector.client.transport_diagnostics import transport_diagnostic
 from zoho_inventory_connector.events.logging_safety import redact_text
 
 REQUIRED_ENV = (
@@ -196,9 +198,17 @@ async def run_preflight(
                 fix = "check client credentials and regenerate the refresh token"
             _say(
                 "FAIL",
-                "access-token refresh failed",
+                "access-token refresh failed"
+                + (
+                    "; " + redact_text(safe_message)[:300]
+                    if isinstance(exc, AuthError) and safe_message
+                    else ""
+                ),
                 fix,
             )
+            diagnostic = getattr(exc, "transport_diagnostic", None)
+            if diagnostic:
+                print("TRANSPORT: " + str(diagnostic))
             print(f"API calls used: {calls}")
             return 1
         _say("PASS", "access-token refresh works")
@@ -241,10 +251,10 @@ async def run_preflight(
             try:
                 response = await api_client.get(f"{base}/{path}", params=params, headers=headers)
             except httpx.HTTPError as exc:
-                host = urlparse(base).hostname or "[unknown]"
+                diagnostic = transport_diagnostic(exc, f"{base}/{path}", attempt=1)
                 _say(
                     "FAIL",
-                    f"endpoint {path}; request exception {type(exc).__name__}; host {host}",
+                    f"endpoint {path}; transport {diagnostic}",
                     "check connectivity",
                 )
                 raise

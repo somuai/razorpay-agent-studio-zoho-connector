@@ -130,6 +130,7 @@ async def test_expired_grant_fails_without_secret_leak(
         await token.aclose()
     output = capsys.readouterr().out
     assert "access-token refresh failed" in output
+    assert "invalid_grant" in output
     assert "private-refresh-token" not in output
     assert "API calls used: 1" in output
 

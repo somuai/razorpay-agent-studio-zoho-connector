@@ -6,14 +6,17 @@ and correlation identifiers, separate from application logs.
 
 import json
 import os
-import uuid
 from dataclasses import asdict, dataclass
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
 from zoho_inventory_connector.client.errors import AuditSinkError
-from zoho_inventory_connector.events.logging_safety import mask_identifier, redact_text
+from zoho_inventory_connector.events.logging_safety import (
+    mask_identifier,
+    new_request_id,
+    redact_text,
+)
 from zoho_inventory_connector.models.order import mask_email, mask_phone
 
 
@@ -75,7 +78,7 @@ class AuditEvent:
             event="audit_tool_invocation",
             tool=tool,
             parameters=sanitize_audit_params(parameters),
-            request_id=request_id or f"req_{uuid.uuid4().hex[:12]}",
+            request_id=request_id or new_request_id(),
         )
 
     def to_json(self) -> str:

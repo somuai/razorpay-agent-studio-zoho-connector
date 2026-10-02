@@ -15,6 +15,7 @@ from zoho_inventory_connector.client.errors import (
     RateLimitError,
     UpstreamError,
 )
+from zoho_inventory_connector.client.transport_diagnostics import transport_diagnostic
 from zoho_inventory_connector.ratelimit.clock import VirtualClock
 
 
@@ -296,11 +297,42 @@ async def test_transport_error_retries_then_maps_to_upstream_error() -> None:
             max_retries=1,
             base_url_override="https://inventory.invalid",
         )
-        with pytest.raises(UpstreamError, match="Network error"):
+        with pytest.raises(UpstreamError, match="Network error") as exc_info:
             await client.get("/items")
 
     assert attempts == 2
     assert client.metrics.calls_retried == 1
+    assert exc_info.value.transport_diagnostic == {
+        "exception_class": "ConnectError",
+        "cause_classes": [],
+        "phase": "connect",
+        "host": "inventory.invalid",
+        "attempt": 2,
+        "proxy_env_names": [],
+    }
+
+
+def test_transport_diagnostic_reports_safe_cause_phase_host_attempt_and_proxy_names() -> None:
+    request = httpx.Request("GET", "https://api.example.invalid/items/123456789012345")
+    cause = OSError("private socket detail")
+    error = httpx.ConnectError("private URL and identifier", request=request)
+    error.__cause__ = cause
+    diagnostic = transport_diagnostic(
+        error,
+        str(request.url),
+        attempt=3,
+        environ={"HTTPS_PROXY": "secret-proxy-value", "NO_PROXY": "private-value"},
+    )
+    assert diagnostic == {
+        "exception_class": "ConnectError",
+        "cause_classes": ["OSError"],
+        "phase": "connect",
+        "host": "api.example.invalid",
+        "attempt": 3,
+        "proxy_env_names": ["HTTPS_PROXY", "NO_PROXY"],
+    }
+    assert "secret-proxy-value" not in str(diagnostic)
+    assert "123456789012345" not in str(diagnostic)
 
 
 @pytest.mark.asyncio

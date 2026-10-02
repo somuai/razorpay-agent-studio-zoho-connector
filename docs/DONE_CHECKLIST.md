@@ -24,7 +24,15 @@ This checklist records commands actually run in this workspace. A green offline 
 - [x] `make check-secrets` — secrets audit clean. Obvious mock/example placeholders are excluded from the secret-like literal match.
 - [x] `make live-smoke` — skipped cleanly with credential variables unset; refresh token may be read from the private token file.
 - [x] `make clean-clone-test` — passed against commit `2cc5ba4` after the log-redaction change; README placeholder check passed, a fresh clone installed 47 locked packages, deterministic SIMULATED eval completed, offline demo completed, and the 8-tool MCP spec generated and verified.
-- [ ] Full live verification and author-captured screenshots — preflight and smoke passed, but the post-fix live smoke, probe, and assertions still need to be run and reviewed. Do not substitute mock output.
+- [ ] Full live verification and author-captured screenshots — the 2026-10-02 post-fix smoke returned transport errors for all eight tools, then the single preflight discriminator failed at token refresh before Inventory calls. `live-probe` and `live-assert` were not run after that failure. Direct unauthenticated curl checks returned Accounts HTTP 200 and Inventory HTTP 401; no proxy variables were set. Live status remains unverified; do not substitute mock output.
+
+## 2026-10-02 live connectivity and request-path investigation
+
+- Direct connectivity check: `https://accounts.zoho.in/` returned HTTP 200; the unauthenticated Inventory organizations route returned HTTP 401; no proxy environment variables were present.
+- One `make live-preflight` run exited at access-token refresh after one token endpoint attempt. Inventory calls were not reached. The output gave a generic refresh failure; offline changes now expose safe OAuth error fields and transport metadata for future diagnosis. Do not retry without the author’s credential/throttle check.
+- The earlier captured `make live-smoke` exited with errors for all eight tools after four attempts each, with no HTTP status or Zoho code. Its scan matched a long digit run in an internal request ID, not a Zoho identifier; generated request IDs now use letters only.
+- Request-path audit of `2cc5ba4`: the only `ZohoClient` change alters `NotFoundError` presentation after a response. The process-wide logging setup changes `LogRecord` text and HTTP logger levels; it does not modify URLs, params, headers, token handling, transports, proxies or retry behavior. Offline regression tests now compare exact mock-transport URL, query params, and Authorization header through the client and full `get_item` tool path with DEBUG logging and the redaction transformation enabled/disabled.
+- Current offline verification: `make test` — 133 passed, 89.86% coverage; `make lint`, `make typecheck`, `make spec`, two deterministic `make eval` runs, `make demo`, and `make check-secrets` passed. `make clean-clone-test` passed against committed HEAD; it does not include this uncommitted patch, so rerun after a reviewed commit.
 
 ## Requirement evidence map
 

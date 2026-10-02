@@ -41,3 +41,26 @@ def test_error_summary_drops_upstream_exception_text() -> None:
     assert "token-private" not in rendered
     assert "email@example.com" not in rendered
     assert "tracking-private-123" not in rendered
+
+
+def test_transport_error_summary_keeps_only_safe_transport_metadata() -> None:
+    rendered = str(
+        _summary(
+            {
+                "error": "UpstreamError",
+                "message": "private exception text",
+                "retryable": True,
+                "transport_diagnostic": {
+                    "exception_class": "ConnectError",
+                    "cause_classes": ["OSError"],
+                    "phase": "connect",
+                    "host": "www.zohoapis.in",
+                    "attempt": 4,
+                    "proxy_env_names": ["HTTPS_PROXY"],
+                },
+            }
+        )
+    )
+    assert "ConnectError" in rendered
+    assert "www.zohoapis.in" in rendered
+    assert "private exception text" not in rendered
