@@ -21,6 +21,7 @@ REQUIRED_ENV = (
     "ZOHO_CLIENT_SECRET",
     "ZOHO_ORG_ID",
 )
+PLACEHOLDER_MARKERS = ("your_", "changeme", "xxx", "<", ">")
 SCOPE_ENDPOINTS = (
     ("ZohoInventory.items.READ", "items?page=1&per_page=1"),
     ("ZohoInventory.salesorders.READ", "salesorders?page=1&per_page=1"),
@@ -85,7 +86,27 @@ async def run_preflight(
 ) -> int:
     """Run preflight checks. Injection points exist only to test offline branches."""
     env = environ if environ is not None else os.environ
-    missing = [key for key in REQUIRED_ENV if not env.get(key)]
+    missing = [key for key in REQUIRED_ENV if key not in env]
+    empty = [key for key in REQUIRED_ENV if key in env and not env.get(key, "").strip()]
+    placeholders = [
+        key
+        for key in REQUIRED_ENV
+        if env.get(key)
+        and (
+            env[key].strip().lower()
+            in {"your_client_id_here", "your_client_secret_here", "your_organization_id_here"}
+            or any(marker in env[key].strip().lower() for marker in PLACEHOLDER_MARKERS)
+        )
+    ]
+    if empty or placeholders:
+        invalid = empty + placeholders
+        if invalid:
+            _say(
+                "FAIL",
+                "credential settings are empty or look like placeholders: " + ", ".join(invalid),
+                "replace these values in the ignored .env before live checks",
+            )
+            return 1
     if missing:
         print(
             "SKIPPED: required settings are not exported in this shell: "

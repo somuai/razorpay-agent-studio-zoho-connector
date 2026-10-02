@@ -75,6 +75,32 @@ async def test_missing_credentials_skip_without_network(capsys: pytest.CaptureFi
 
 
 @pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "key,value",
+    [
+        ("ZOHO_CLIENT_ID", ""),
+        ("ZOHO_CLIENT_SECRET", "your_client_secret_here"),
+        ("ZOHO_ORG_ID", "changeme"),
+        ("ZOHO_CLIENT_ID", "xxx-client"),
+        ("ZOHO_CLIENT_SECRET", "<secret>"),
+    ],
+)
+async def test_placeholder_credentials_fail_without_network(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str], key: str, value: str
+) -> None:
+    env = _environment(tmp_path)
+    env[key] = value
+    if not value:
+        assert await run_preflight(env) == 1
+        assert "empty or look like placeholders" in capsys.readouterr().out
+    else:
+        assert await run_preflight(env) == 1
+        output = capsys.readouterr().out
+        assert "look like placeholders" in output
+        assert value not in output
+
+
+@pytest.mark.asyncio
 async def test_preflight_success_is_bounded_and_screenshot_safe(
     tmp_path: Path, capsys: pytest.CaptureFixture[str]
 ) -> None:
