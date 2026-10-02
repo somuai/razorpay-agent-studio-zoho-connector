@@ -41,8 +41,10 @@ def _http_clients(
             )
         if quota and request.url.path.endswith("/packages"):
             return httpx.Response(429, json={"code": 45})
-        if missing_scope and request.url.path.endswith("/shipmentorders"):
+        if missing_scope and request.url.path.startswith("/inventory/v1/shipmentorders/"):
             return httpx.Response(403, json={"code": 57})
+        if request.url.path.startswith("/inventory/v1/shipmentorders/"):
+            return httpx.Response(404, json={"code": 1002})
         return httpx.Response(200, json={"code": 0})
 
     return (
@@ -103,7 +105,7 @@ async def test_expired_grant_fails_without_secret_leak(
     output = capsys.readouterr().out
     assert "access-token refresh failed" in output
     assert "private-refresh-token" not in output
-    assert "API calls used: 0" in output
+    assert "API calls used: 1" in output
 
 
 @pytest.mark.asyncio
@@ -146,7 +148,7 @@ async def test_missing_scope_reports_reconnect_hint(
     finally:
         await api.aclose()
         await token.aclose()
-    assert "reconnect with the documented read scopes" in capsys.readouterr().out
+    assert "reconnect with the listed documented read scopes" in capsys.readouterr().out
 
 
 @pytest.mark.asyncio
@@ -178,4 +180,20 @@ async def test_token_file_permissions_fail_before_any_network(
         await api.aclose()
         await token.aclose()
     assert "permissions are not 0600" in capsys.readouterr().out
+    assert not calls
+
+
+@pytest.mark.asyncio
+async def test_missing_token_file_fails_before_any_network(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    env = _environment(tmp_path)
+    Path(env["ZOHO_TOKEN_FILE"]).unlink()
+    api, token, calls = _http_clients()
+    try:
+        assert await run_preflight(env, api_http=api, token_http=token) == 1
+    finally:
+        await api.aclose()
+        await token.aclose()
+    assert "private token file is missing" in capsys.readouterr().out
     assert not calls

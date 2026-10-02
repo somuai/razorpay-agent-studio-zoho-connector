@@ -145,3 +145,54 @@ async def test_stock_schema_drift_preserves_unknown_and_accepts_numeric_strings(
     assert malformed.status == StockStatus.UNKNOWN
     assert one_location.status == StockStatus.LOW_STOCK
     assert one_location.quantity_sellable == 2.0
+
+
+@pytest.mark.asyncio
+async def test_dispute_service_reads_nested_package_shipment_not_undocumented_list(
+    mock_client: ZohoClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    calls: list[str] = []
+
+    async def package_detail_get(
+        endpoint: str, **_kwargs: object
+    ) -> tuple[dict[str, object], bool, str]:
+        calls.append(endpoint)
+        if endpoint == "/salesorders/12345":
+            return (
+                {
+                    "salesorder": {
+                        "salesorder_id": "12345",
+                        "salesorder_number": "SO-TEST-12345",
+                        "status": "fulfilled",
+                        "date": "2026-10-02",
+                        "invoices": [{"invoice_number": "INV-TEST"}],
+                        "packages": [{"package_id": "98765", "package_number": "PKG-TEST"}],
+                    }
+                },
+                False,
+                "2026-10-02T00:00:00+00:00",
+            )
+        if endpoint == "/packages/98765":
+            return (
+                {
+                    "package": {
+                        "package_id": "98765",
+                        "shipment_order": {
+                            "status": "shipped",
+                            "carrier": "Synthetic Carrier",
+                            "tracking_number": "FAKE-TRACKING",
+                        },
+                    }
+                },
+                False,
+                "2026-10-02T00:00:00+00:00",
+            )
+        raise AssertionError(f"Unexpected endpoint {endpoint}")
+
+    monkeypatch.setattr(mock_client, "get", package_detail_get)
+    result = await DisputeService(mock_client).get_order_fulfillment_evidence("12345")
+    assert result.carrier.status == "present"
+    assert result.tracking_number.status == "present"
+    assert result.delivery_date.status == "not_available"
+    assert "/shipmentorders" not in calls
+    assert "/packages/98765" in calls

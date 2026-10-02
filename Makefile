@@ -1,4 +1,4 @@
-.PHONY: help setup lint format typecheck test mock-server spec eval demo live-smoke zoho-token check-secrets clean clean-clone-test
+.PHONY: help setup lint format typecheck test mock-server spec eval demo live-preflight live-smoke live-probe live-assert zoho-token check-secrets clean clean-clone-test
 
 PYTHON ?= .venv/bin/python
 UVICORN ?= .venv/bin/uvicorn
@@ -18,7 +18,10 @@ help:
 	@echo "  make spec           - Generate and verify mcp/tool_spec.json"
 	@echo "  make eval           - Run M1/M2/M3 evaluation harness (deterministic)"
 	@echo "  make demo           - Run end-to-end demo offline against mock server"
+	@echo "  make live-preflight - Validate live credentials and read access (bounded, read-only)"
 	@echo "  make live-smoke     - Run smoke test against live Zoho instance (read-only)"
+	@echo "  make live-probe     - Record read-only live API response shapes"
+	@echo "  make live-assert    - Compare live test records with local expected output"
 	@echo "  make zoho-token     - Run local Zoho OAuth setup and save a private refresh token"
 	@echo "  make check-secrets  - Audit repo for committed secrets/tokens"
 	@echo "  make clean-clone-test - Clone to temp dir and verify README quickstart offline"
@@ -56,8 +59,17 @@ eval:
 demo:
 	$(PYTHON) -m examples.demo
 
+live-preflight:
+	$(PYTHON) -m examples.live_preflight
+
 live-smoke:
 	$(PYTHON) -m examples.live_smoke
+
+live-probe:
+	$(PYTHON) -m examples.live_probe
+
+live-assert:
+	$(PYTHON) -m examples.live_assert
 
 zoho-token:
 	$(PYTHON) -m examples.zoho_token

@@ -30,7 +30,7 @@ The connector-aware zero is guaranteed by its suppression rule; neither column e
 
 **Delivery-proof gap:** Zoho documents shipment status, carrier and tracking number, but no delivered-at timestamp. A Zoho-only connector cannot provide carrier-confirmed delivery proof for chargebacks; the likely long-term fix is a carrier-tracking integration, validated with the merchant.
 
-**Live mode: not yet verified.** The user reports completing Zoho signup, and Zoho Home is signed in. The Inventory page remained blank after reload, so no Inventory organization, plan, live run, or screenshot has been verified. See [docs/INSPECTOR_DEMO.md](docs/INSPECTOR_DEMO.md) for the mock and live inspection paths.
+**Live mode: not yet verified.** A signed-in Zoho Inventory dashboard was observed with a Premium trial showing 14 days remaining and setup at 0%. That organization is institutional and is explicitly excluded from testing: no records, scopes, or credentials were created there. The author will create and manage a separate throwaway organization under a personal Zoho account before any live run. The observed Premium-trial quota is 10,000 requests/day; this does not establish free-plan behavior (documented as 1,000/day) or validate connector quotas in the new organization. See [docs/INSPECTOR_DEMO.md](docs/INSPECTOR_DEMO.md) for the mock and live inspection paths.
 
 ## Quickstart
 
@@ -47,10 +47,10 @@ make demo
 ### Live Zoho (read-only smoke path)
 
 1. Copy `.env.example` to `.env`; configure an isolated Zoho test organization and OAuth client. Never place credentials in Git or chat.
-2. Ensure the local shell exports `ZOHO_CLIENT_ID`, `ZOHO_CLIENT_SECRET`, `ZOHO_REFRESH_TOKEN`, and `ZOHO_ORG_ID`. The Makefile does not load `.env` automatically. `make zoho-token` can perform the local authorization-code flow and save the refresh token to the ignored `ZOHO_TOKEN_FILE` path.
-3. For the optional fictional live-trial fixtures, first review the write scopes and safeguards in `docs/API_NOTES.md` and `scripts/seed_zoho.py`; use only a throwaway organization. Then run `make live-smoke`. It skips cleanly when the required read credentials are absent and prints only masked tool summaries.
+2. Ensure the local shell exports `ZOHO_CLIENT_ID`, `ZOHO_CLIENT_SECRET`, and `ZOHO_ORG_ID`; `ZOHO_DC=in` for India. Make does not load `.env` automatically. Run `make zoho-token` to exchange a grant code entered at a hidden prompt; it stores the refresh token in the ignored `ZOHO_TOKEN_FILE` path with mode `0600`.
+3. Follow [the live bring-up runbook](docs/LIVE_BRINGUP.md): run preflight, exchange the grant, repeat preflight, then smoke, probe, and assert. Inventory resource calls are read-only; the token helper only exchanges OAuth credentials. The separate optional seed script is not part of this path; do not seed an organization unless you explicitly choose to use its write scopes and safeguards.
 
-Live credentials and a real Zoho organization are not present in this workspace. No live call has been made. Do not seed any organization containing real merchant data. The seed script writes fictional records and requires an explicit `--i-understand-this-writes` flag plus separate `ZOHO_SEED_*` credentials.
+No approved throwaway-org credentials were exported in the shell during this offline preparation, and no live call has been made. Do not seed the institutional organization or any organization containing real merchant data. The seed script writes fictional records and requires an explicit `--i-understand-this-writes` flag plus separate `ZOHO_SEED_*` credentials.
 
 ## What is implemented
 
@@ -84,6 +84,7 @@ Public commentary has asked whether personalized offers could create price-discr
 - [Limitations and production fixes](docs/LIMITATIONS.md)
 - [Three-minute walkthrough](docs/WALKTHROUGH.md)
 - [MCP Inspector guide](docs/INSPECTOR_DEMO.md)
+- [Live bring-up runbook](docs/LIVE_BRINGUP.md)
 - [API verification notes](docs/API_NOTES.md)
 - [Measurement framework](docs/MEASUREMENT.md)
 - [Assumptions](docs/ASSUMPTIONS.md)

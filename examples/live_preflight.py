@@ -15,19 +15,19 @@ import httpx
 
 from zoho_inventory_connector.auth.oauth import DC_API_MAP
 from zoho_inventory_connector.auth.token_manager import TokenManager
-from zoho_inventory_connector.client.errors import ConnectorError
 
 REQUIRED_ENV = (
     "ZOHO_CLIENT_ID",
     "ZOHO_CLIENT_SECRET",
-    "ZOHO_REFRESH_TOKEN",
     "ZOHO_ORG_ID",
 )
 SCOPE_ENDPOINTS = (
     ("ZohoInventory.items.READ", "items?page=1&per_page=1"),
     ("ZohoInventory.salesorders.READ", "salesorders?page=1&per_page=1"),
     ("ZohoInventory.packages.READ", "packages?page=1&per_page=1"),
-    ("ZohoInventory.shipmentorders.READ", "shipmentorders?page=1&per_page=1"),
+    # Zoho documents shipment retrieval by ID but not a list endpoint. A synthetic
+    # missing ID distinguishes a permitted route (404/code 1002) from denied scope.
+    ("ZohoInventory.shipmentorders.READ", "shipmentorders/999999999999999999999999999999"),
     ("ZohoInventory.invoices.READ", "invoices?page=1&per_page=1"),
     ("ZohoInventory.contacts.READ", "contacts?page=1&per_page=1"),
 )
@@ -88,7 +88,9 @@ async def run_preflight(
     missing = [key for key in REQUIRED_ENV if not env.get(key)]
     if missing:
         print(
-            "SKIPPED: Zoho credentials are not configured; add them to the local .env before live checks."
+            "SKIPPED: required settings are not exported in this shell: "
+            + ", ".join(missing)
+            + ". Export these names from the local .env before live checks."
         )
         return 0
 
@@ -117,23 +119,38 @@ async def run_preflight(
         token_manager = TokenManager(
             client_id=env["ZOHO_CLIENT_ID"],
             client_secret=env["ZOHO_CLIENT_SECRET"],
-            refresh_token=env["ZOHO_REFRESH_TOKEN"],
+            refresh_token=env.get("ZOHO_REFRESH_TOKEN"),
             token_file=token_path,
             dc=env.get("ZOHO_DC", "in"),
             accounts_base_url=env.get("ZOHO_ACCOUNTS_BASE_URL"),
             http_client=token_client,
         )
-        try:
-            access_token = await token_manager.get_access_token(force_refresh=True)
-        except Exception:
+        if not token_manager.refresh_token:
             _say(
                 "FAIL",
-                "access-token refresh failed",
-                "check client credentials and regenerate the refresh token",
+                "no refresh token found in environment or private token file",
+                "run make zoho-token and keep the token file at the configured path",
             )
             print(f"API calls used: {calls}")
             return 1
-        calls += 1
+        calls += 1  # Count the token endpoint attempt, including rejected grants.
+        try:
+            access_token = await token_manager.get_access_token(force_refresh=True)
+        except Exception as exc:
+            safe_message = str(getattr(exc, "message", ""))
+            if "invalid_grant" in safe_message:
+                fix = "refresh token is expired or revoked; generate a new read-only grant with make zoho-token"
+            elif "invalid_client" in safe_message:
+                fix = "check the client ID/secret pair and API Console data center"
+            else:
+                fix = "check client credentials and regenerate the refresh token"
+            _say(
+                "FAIL",
+                "access-token refresh failed",
+                fix,
+            )
+            print(f"API calls used: {calls}")
+            return 1
         _say("PASS", "access-token refresh works")
 
         api_domain = token_manager._api_domain
@@ -164,8 +181,8 @@ async def run_preflight(
         ) -> tuple[httpx.Response, dict[str, Any]]:
             nonlocal calls
             params = {"organization_id": env["ZOHO_ORG_ID"]} if org_required else None
-            response = await api_client.get(f"{base}/{path}", params=params, headers=headers)
             calls += 1
+            response = await api_client.get(f"{base}/{path}", params=params, headers=headers)
             try:
                 data = response.json()
             except ValueError:
@@ -200,22 +217,30 @@ async def run_preflight(
                 )
                 print(f"API calls used: {calls}")
                 return 1
+            if scope == "ZohoInventory.shipmentorders.READ" and (
+                probe.status_code == 404 or data.get("code") in (1002, 1003)
+            ):
+                # Expected record-not-found proves the scoped detail route was reached.
+                continue
             if not probe.is_success or data.get("code", 0) not in (0, None):
                 scope_failures.append(scope)
         if scope_failures:
             _say(
                 "FAIL",
-                "one or more read-scope endpoint checks failed",
-                "reconnect with the documented read scopes; scope names are listed in docs/API_NOTES.md",
+                "read-scope endpoint checks failed for: " + ", ".join(scope_failures),
+                "reconnect with the listed documented read scopes; if salesorders is HTTP 400, inspect the list-all limitation and verified-ID fallback",
             )
             print(f"API calls used: {calls}")
             return 1
-        _say("PASS", "documented read scopes are effective on all six resource endpoints")
+        _say(
+            "PASS",
+            "documented read scopes are effective on all six resource routes (shipment route reached expected not-found)",
+        )
 
         _say("PASS", "cheap reads succeeded for items, salesorders, packages, and invoices")
         print(f"API calls used: {calls} (budget: <=12)")
         return 0
-    except (httpx.HTTPError, ConnectorError):
+    except Exception:
         _say(
             "FAIL",
             "Zoho preflight request failed",

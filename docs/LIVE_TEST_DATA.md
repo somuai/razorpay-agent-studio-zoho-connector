@@ -19,7 +19,7 @@ Create ten inventory-tracked items with unique SKUs `KHG-001` through `KHG-010`.
 | KHG-009 | 2 | 2 | low_stock |
 | KHG-010 | 0 | 5 | out_of_stock |
 
-This creates six ordinary in-stock items, two at or below their reorder level, and two out of stock. If locations are enabled, optionally split one in-stock SKU over two locations and record this for the probe; stock checking currently reports location detail only when its schema supports it.
+This creates six ordinary in-stock items, two at or below their reorder level, and two out of stock. If locations are enabled, split `KHG-006` over two locations and note that in the local expected file. With multiple locations and no merchant allocation rule, this connector intentionally reports `unknown` rather than summing locations; set `KHG-006` to `unknown` in `live_expected.yaml` for that variant.
 
 ## Sales orders and fulfillment records
 
@@ -27,11 +27,11 @@ Create five sales orders with unique references exactly `RZP-TEST-001` through `
 
 | Reference | Expected setup | Evidence expectation |
 |---|---|---|
-| RZP-TEST-001 | Invoice, package, shipment; fake carrier and tracking number | Zoho evidence partial; delivery proof `not_available` |
-| RZP-TEST-002 | Invoice, package, shipment; fake carrier and tracking number | Zoho evidence partial; delivery proof `not_available` |
-| RZP-TEST-003 | Invoice, package, shipment; fake carrier and tracking number | Zoho evidence partial; delivery proof `not_available` |
-| RZP-TEST-004 | Invoice and package, no shipment | Partial; shipment/carrier/tracking/dates missing |
-| RZP-TEST-005 | Invoice, no package or shipment | Partial; package/shipment/carrier/tracking/dates missing |
+| RZP-TEST-001 | Invoice, package, shipment; fake carrier and tracking number | Partial; `shipment_date` and `delivery_date` unavailable unless those exact fields are exposed; delivery proof `not_available` |
+| RZP-TEST-002 | Invoice, package, shipment; fake carrier and tracking number | Partial; `shipment_date` and `delivery_date` unavailable unless those exact fields are exposed; delivery proof `not_available` |
+| RZP-TEST-003 | Invoice, package, shipment; fake carrier and tracking number | Partial; `shipment_date` and `delivery_date` unavailable unless those exact fields are exposed; delivery proof `not_available` |
+| RZP-TEST-004 | Invoice and package, no shipment | Partial; shipment status/carrier/tracking/dates missing |
+| RZP-TEST-005 | Invoice, no package or shipment | Partial; package/shipment status/carrier/tracking/dates missing |
 
 Zoho's documented shipment fields in this project do not include a carrier-confirmed delivered-at timestamp. The connector's current completeness field also counts shipment and delivery dates, so a data-backed record may show `partial` even when its basic Zoho evidence exists. Do not mark a test order complete based on your expectation alone: inspect the actual output and use it to update the expected file if your organization exposes different fields. `delivery_proof` in the expected file means the connector's `delivery_date.status`; expect `not_available` for all five.
 

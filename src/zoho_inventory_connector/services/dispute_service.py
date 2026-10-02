@@ -18,6 +18,13 @@ from zoho_inventory_connector.models.evidence import (
 )
 
 
+def _dict_rows(value: object) -> list[dict[str, Any]]:
+    """Ignore malformed/missing embedded collections without inventing evidence."""
+    if not isinstance(value, list):
+        return []
+    return [row for row in value if isinstance(row, dict)]
+
+
 class DisputeService:
     """Service to assemble chargeback rebuttal fulfillment proof without speculation (FR-5.4)."""
 
@@ -80,11 +87,11 @@ class DisputeService:
             )
 
         # 2. Extract nested or fetch sub-resources (invoices, packages, shipments)
-        invoices: list[dict[str, Any]] = so_data.get("invoices", [])
-        packages: list[dict[str, Any]] = so_data.get("packages", [])
-        shipments: list[dict[str, Any]] = so_data.get("shipments", [])
+        invoices = _dict_rows(so_data.get("invoices"))
+        packages = _dict_rows(so_data.get("packages"))
+        shipments = _dict_rows(so_data.get("shipments"))
 
-        # If sub-resources weren't embedded, fetch separately
+        # If sub-resources weren't embedded, fetch documented list/detail endpoints.
         if not invoices:
             try:
                 inv_res, _, _ = await self.client.get(
@@ -93,7 +100,7 @@ class DisputeService:
                     cache_ttl=120.0,
                     bypass_cache=bypass_cache,
                 )
-                invoices = inv_res.get("invoices", [])
+                invoices = _dict_rows(inv_res.get("invoices"))
             except NotFoundError:
                 invoices = []
 
@@ -105,21 +112,33 @@ class DisputeService:
                     cache_ttl=120.0,
                     bypass_cache=bypass_cache,
                 )
-                packages = pkg_res.get("packages", [])
+                packages = _dict_rows(pkg_res.get("packages"))
             except NotFoundError:
                 packages = []
 
         if not shipments:
-            try:
-                shp_res, _, _ = await self.client.get(
-                    "/shipmentorders",
-                    params={"salesorder_id": so_id_clean},
-                    cache_ttl=120.0,
-                    bypass_cache=bypass_cache,
-                )
-                shipments = shp_res.get("shipmentorders", [])
-            except NotFoundError:
-                shipments = []
+            # Zoho documents shipment retrieval by ID but not a shipment list route.
+            # Package detail may embed shipment_order; use that documented path and
+            # leave shipment fields unavailable if the package does not expose it.
+            for package in packages:
+                shipment = package.get("shipment_order")
+                if not isinstance(shipment, dict) and package.get("package_id"):
+                    try:
+                        pkg_res, _, _ = await self.client.get(
+                            f"/packages/{package['package_id']}",
+                            cache_ttl=120.0,
+                            bypass_cache=bypass_cache,
+                        )
+                        pkg_detail = pkg_res.get("package", {})
+                        shipment = (
+                            pkg_detail.get("shipment_order")
+                            if isinstance(pkg_detail, dict)
+                            else None
+                        )
+                    except NotFoundError:
+                        shipment = None
+                if isinstance(shipment, dict):
+                    shipments.append(shipment)
 
         # 3. Compile Individual Evidence Fields
         missing_fields: list[str] = []

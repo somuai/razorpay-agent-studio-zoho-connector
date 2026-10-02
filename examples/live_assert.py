@@ -38,14 +38,14 @@ def load_expected(path: Path = EXPECTED_PATH) -> dict[str, Any]:
 
 
 def _configured_client() -> ZohoClient:
-    required = ("ZOHO_CLIENT_ID", "ZOHO_CLIENT_SECRET", "ZOHO_REFRESH_TOKEN", "ZOHO_ORG_ID")
+    required = ("ZOHO_CLIENT_ID", "ZOHO_CLIENT_SECRET", "ZOHO_ORG_ID")
     missing = [key for key in required if not os.environ.get(key)]
     if missing:
         raise ValueError("Missing required Zoho environment settings: " + ", ".join(missing))
     manager = TokenManager(
         client_id=os.environ["ZOHO_CLIENT_ID"],
         client_secret=os.environ["ZOHO_CLIENT_SECRET"],
-        refresh_token=os.environ["ZOHO_REFRESH_TOKEN"],
+        refresh_token=os.environ.get("ZOHO_REFRESH_TOKEN"),
         token_file=os.environ.get("ZOHO_TOKEN_FILE", ".zoho_token.json"),
         dc=os.environ.get("ZOHO_DC", "in"),
         accounts_base_url=os.environ.get("ZOHO_ACCOUNTS_BASE_URL"),
@@ -117,6 +117,12 @@ async def run(expected: dict[str, Any]) -> int:
 
 
 def main() -> None:
+    required = ("ZOHO_CLIENT_ID", "ZOHO_CLIENT_SECRET", "ZOHO_ORG_ID")
+    if any(not os.environ.get(key) for key in required):
+        print(
+            "SKIPPED: live assertions require client credentials and an Inventory organization; no network calls were made."
+        )
+        raise SystemExit(0)
     try:
         config = load_expected()
         raise SystemExit(asyncio.run(run(config)))

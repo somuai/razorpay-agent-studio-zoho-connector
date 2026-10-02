@@ -634,7 +634,7 @@ async def list_sales_orders(
             return {
                 "error": "SalesOrderListUnsupportedError",
                 "message": "Zoho rejected the sales-order list request. This organization may require a narrower, verified filter or a sales-order ID.",
-                "agent_guidance": "Use get_sales_order when you have a verified salesorder_id. Otherwise try search_sales_orders with a merchant-verified reference_number; do not guess IDs or payment matches.",
+                "agent_guidance": "Use get_sales_order with a verified salesorder_id. Use search_sales_orders with a merchant-verified reference_number only if live-probe confirmed that reference search works in this organization; otherwise report that order lookup needs a verified ID. Never guess IDs or payment matches.",
                 "retryable": False,
                 "http_status": 400,
             }

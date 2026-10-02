@@ -418,6 +418,35 @@ async def list_packages(
     return {"code": 0, "message": "success", "packages": pkgs}
 
 
+@app.get("/inventory/v1/packages/{package_id}")
+async def get_package(
+    package_id: str,
+    organization_id: str | None = Query(None),
+    authorization: str | None = Header(None),
+) -> Any:
+    """Return a fictional package with its nested shipment when one exists."""
+    fault = _check_faults_and_auth(authorization)
+    if fault:
+        return fault
+
+    for package in FIXTURES["packages"]:
+        if package["package_id"] == package_id:
+            detail = dict(package)
+            linked = [
+                shipment
+                for shipment in FIXTURES["shipments"]
+                if shipment.get("package_id") == package_id
+            ]
+            if linked:
+                detail["shipment_order"] = linked[0]
+            return {"code": 0, "message": "success", "package": detail}
+
+    return JSONResponse(
+        status_code=404,
+        content={"code": 1002, "message": f"Package {package_id} not found."},
+    )
+
+
 @app.get("/inventory/v1/shipmentorders")
 async def list_shipment_orders(
     salesorder_id: str | None = Query(None),

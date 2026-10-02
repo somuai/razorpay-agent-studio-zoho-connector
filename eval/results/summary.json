@@ -27,12 +27,12 @@
       "partial_evidence_pct": 55.0
     },
     "ops_impact": {
-      "api_calls_per_dispute_case": 2.1,
+      "api_calls_per_dispute_case": 1.65,
       "evidence_checklist_complete_cases": 18,
       "ops_assisted_cases": 22,
       "unsupported_cases": 0,
-      "upstream_api_calls": 84,
-      "zoho_free_tier_quota_consumed_pct": 8.4
+      "upstream_api_calls": 66,
+      "zoho_free_tier_quota_consumed_pct": 6.6
     },
     "simulation_mode": "SIMULATED",
     "total_dispute_cases": 40,
@@ -51,8 +51,8 @@
     "M2_zoho_documented_evidence_complete_pct": 45.0,
     "M3_cache_hit_pct": 87.85,
     "M3_cart_api_calls_per_decision": 0.15,
-    "M3_total_calls_both_sims": 114,
-    "M3_total_quota_both_sims_pct": 11.4,
+    "M3_total_calls_both_sims": 96,
+    "M3_total_quota_both_sims_pct": 9.6,
     "M3_zoho_free_tier_quota_consumed_pct": 3.0
   },
   "nudge_simulation": {

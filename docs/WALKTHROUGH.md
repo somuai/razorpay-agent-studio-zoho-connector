@@ -18,7 +18,7 @@ For a live demonstration, run the read-only smoke path only after credentials an
 
 ## 1:35–2:10 — Simulated evaluation
 
-Show `make eval` output/results and label every number **SIMULATED**. In the checked-in seed-42 outputs: the policy suppresses 54 out-of-stock nudges among 200 carts (27% baseline to 0% under the simulated connector-aware policy); 18 of 40 disputes have all checklist fields and 22 are partial; the cart simulation records 0.15 API calls per decision and 87.85% cache hits. The cart simulation estimates 3% of the modeled daily quota; both simulations together use 11.4%. These figures are not production outcomes or a measured uplift. The recorded latency uses a virtual clock and is not a runtime benchmark.
+Show `make eval` output/results and label every number **SIMULATED**. In the checked-in seed-42 outputs: the policy suppresses 54 out-of-stock nudges among 200 carts (27% baseline to 0% under the simulated connector-aware policy); 18 of 40 disputes have all checklist fields and 22 are partial; the cart simulation records 0.15 API calls per decision and 87.85% cache hits. The cart simulation estimates 3% of the modeled daily quota; both simulations together use 9.6% (96 mock API calls, including 1.65 calls per dispute case). These figures are not production outcomes or a measured uplift. The recorded latency uses a virtual clock and is not a runtime benchmark.
 
 ## 2:10–2:35 — Limits and safety
 

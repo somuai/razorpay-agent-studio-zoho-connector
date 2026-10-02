@@ -38,7 +38,9 @@ This is a manual inspection guide, not proof that a live Zoho organization has b
 
 ## Live mode (not verified)
 
-Only use an isolated test organization. Configure OAuth credentials and `ZOHO_ORG_ID`, `ZOHO_DC`, and token settings in the shell. Use read-only scopes only. No live credentials are present in this project workspace. Run `make live-smoke`; it skips cleanly when required credentials are absent and prints only masked summaries when configured. After an author-confirmed run, add only author-captured masked evidence under `docs/assets/`.
+Only use the separate personal throwaway organization on the India data center. Never use an institutional organization. The author creates and populates this org manually and handles credentials outside chat. Use only the documented read scopes for the connector.
+
+Follow [the live bring-up runbook](LIVE_BRINGUP.md): first run `make live-preflight` (it skips without credentials), exchange a fresh grant code with `make zoho-token`, then repeat preflight before running `make live-smoke`, `make live-probe`, and `make live-assert`. These commands are read-only and print masked summaries or field names/types. The probe writes shape-only findings to `docs/LIVE_FINDINGS.md`; it does not write to Zoho. The assertion uses expected fixture values in the local, gitignored `live_expected.yaml`. After an author-confirmed run, add only author-captured masked evidence under `docs/assets/`.
 
 ## What this check does not prove
 
