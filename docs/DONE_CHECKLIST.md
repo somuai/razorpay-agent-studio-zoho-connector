@@ -19,7 +19,7 @@ This checklist records commands actually run in this workspace. A green offline 
 - [x] `python scripts/seed_zoho.py --dry-run` — reported 10 fictional items, 8 orders, 4 packages, up to 2 shipments; no credentials or network used.
 - [x] `make check-secrets` — secrets audit clean. Obvious mock/example placeholders are excluded from the secret-like literal match.
 - [x] `make live-smoke` — skipped cleanly with credential variables unset; refresh token may be read from the private token file.
-- [ ] `make clean-clone-test` — rerun after the current bring-up changes are committed; previous evidence was against `09932ab` and is historical only.
+- [x] `make clean-clone-test` — passed against commit `a63b8de`; README placeholder check passed, fresh clone installed 47 locked packages, deterministic SIMULATED eval printed updated 1.65 calls/dispute and 9.6% combined quota, offline demo completed (5 events / 3 retries / 1 throttled call), and MCP spec generated and verified.
 - [ ] Live Zoho verification and author-captured screenshots — pending external org credentials and author confirmation. Do not substitute mock output.
 
 ## Requirement evidence map

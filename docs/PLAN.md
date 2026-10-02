@@ -48,6 +48,6 @@ If constrained, defer M11 first, then streamable HTTP, extra edge-case tests bey
 - [x] Create the long-running completion goal and start bounded documentation/evaluation work.
 - [x] Reconcile the implementation, scripts, docs and tests to AGENTS.md v2; update API notes and regenerate the MCP spec.
 - [x] Complete the offline M1–M9 implementation and documentation work; lint, typecheck, tests, simulated eval, demo, live-smoke skip, seed dry-run and secret scan have run. Record detailed outputs in `docs/DONE_CHECKLIST.md`.
-- [x] Finish M10 read-only review and fixes, commit the candidate, and pass `make clean-clone-test`.
+- [x] Finish M10 read-only review and fixes, commit the candidate, and pass `make clean-clone-test` against the live-bring-up prep commit.
 - [x] Prepare a safe live bring-up path offline: preflight, hidden grant-code exchange, masked smoke output, read-only response-shape probe, hand-entered expected-data assertions, and schema-drift fallback; no Zoho requests made.
 - [ ] Obtain author-run live verification; if unavailable, retain “Live mode: not yet verified.”
