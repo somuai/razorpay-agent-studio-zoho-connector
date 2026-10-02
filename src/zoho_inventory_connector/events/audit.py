@@ -13,32 +13,43 @@ from pathlib import Path
 from typing import Any
 
 from zoho_inventory_connector.client.errors import AuditSinkError
+from zoho_inventory_connector.events.logging_safety import mask_identifier, redact_text
 from zoho_inventory_connector.models.order import mask_email, mask_phone
 
 
 def sanitize_audit_params(params: dict[str, Any]) -> dict[str, Any]:
     """Sanitize parameters dictionary for audit recording by stripping/masking PII (FR-15)."""
+
+    def sanitize_value(key: str, value: Any) -> Any:
+        lower_key = key.lower()
+        if any(
+            marker in lower_key for marker in ("token", "secret", "authorization", "grant_code")
+        ):
+            return "[REDACTED_SECRET]"
+        if isinstance(value, dict):
+            return {
+                str(nested_key): sanitize_value(str(nested_key), nested_value)
+                for nested_key, nested_value in value.items()
+            }
+        if isinstance(value, list):
+            return [sanitize_value(key, item) for item in value]
+        if "email" in lower_key and isinstance(value, str):
+            return mask_email(value)
+        if "phone" in lower_key and isinstance(value, str):
+            return mask_phone(value)
+        if lower_key in {"query", "search", "search_text", "free_text"}:
+            return "[OMITTED]"
+        if lower_key in {"reference_number", "razorpay_order_id"}:
+            return "[MASKED]"
+        if lower_key.endswith("_id"):
+            return mask_identifier(value)
+        if isinstance(value, str):
+            return redact_text(value)
+        return value
+
     sanitized: dict[str, Any] = {}
     for key, val in params.items():
-        lower_k = key.lower()
-        if "token" in lower_k or "secret" in lower_k or "auth" in lower_k:
-            sanitized[key] = "[REDACTED_SECRET]"
-        elif "email" in lower_k and isinstance(val, str):
-            sanitized[key] = mask_email(val)
-        elif "phone" in lower_k and isinstance(val, str):
-            sanitized[key] = mask_phone(val)
-        elif lower_k in {"query", "search", "search_text", "free_text"}:
-            sanitized[key] = "[OMITTED]"
-        elif lower_k in {
-            "reference_number",
-            "razorpay_order_id",
-            "salesorder_id",
-            "item_id",
-            "customer_id",
-        }:
-            sanitized[key] = "[MASKED]"
-        else:
-            sanitized[key] = val
+        sanitized[key] = sanitize_value(key, val)
     return sanitized
 
 

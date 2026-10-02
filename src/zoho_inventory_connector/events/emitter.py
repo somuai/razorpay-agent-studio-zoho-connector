@@ -11,6 +11,7 @@ import uuid
 from dataclasses import asdict, dataclass
 from datetime import UTC, datetime
 
+from zoho_inventory_connector.events.logging_safety import redact_text
 from zoho_inventory_connector.ratelimit.metrics import ACTIVE_TOOL_CALL_METRICS
 
 # Logger dedicated to telemetry events; outputs to stderr by default (NFR-8)
@@ -87,7 +88,7 @@ class EventEmitter:
         """Record event in memory and write JSON to stderr (NFR-8)."""
         self.events.append(event)
         # Stdio hygiene: Always write logs to stderr, never stdout (NFR-8)
-        sys.stderr.write(f"[TELEMETRY] {event.to_json()}\n")
+        sys.stderr.write(f"[TELEMETRY] {redact_text(event.to_json())}\n")
         sys.stderr.flush()
 
     def get_events(self) -> list[ToolExecutionEvent]:

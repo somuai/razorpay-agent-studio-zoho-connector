@@ -1,6 +1,6 @@
 # Completion checklist and evidence
 
-This checklist records commands actually run in this workspace. A green offline gate does not establish live Zoho compatibility or merchant impact. Live verification remains pending until the author runs the smoke path against a real throwaway org and confirms it.
+This checklist records commands actually run in this workspace. A green offline gate does not establish live Zoho compatibility or merchant impact. The author has confirmed a live preflight and smoke run; full live probe/assert and author-captured evidence remain pending, so the README continues to say live verification is not yet complete.
 
 ## Quality gates
 
@@ -16,6 +16,7 @@ This checklist records commands actually run in this workspace. A green offline 
 - [x] Live bring-up prep — `live-preflight`, `live-smoke`, `live-probe`, `live-assert`, and `zoho-token` all skipped cleanly when their required environment variables were explicitly unset; no Zoho requests were made. Preflight's offline branch tests cover wrong DC/org, rejected refresh grant, missing scope, quota exhaustion, and unsafe/missing token setup. Probe/assert tests use only the mock or an in-memory fake.
 - [x] Preflight placeholder guard — `make test` covers absent, empty, template, and obvious placeholder credential values; `make lint` passes. `live-preflight` now fails with variable names only when a configured credential is empty or placeholder-like, while still skipping cleanly when settings are absent from the environment.
 - [x] Preflight diagnostics — added masked endpoint path, HTTP status, Zoho code/message, host, token-scope display, exception class and one-line fixes; offline gates pass (`make lint`, `make test` 118 passed / 90.18% coverage, `make typecheck`, `make spec`, `make check-secrets`). No live call was made during this code change.
+- [x] Live logging identifier leak — the 2026-10-02 smoke exposed full request URLs in HTTPX logs. Added process-wide record redaction, quiet HTTP library defaults, safe not-found errors, recursive audit parameter masking, and ignored `.log`/`.jsonl` artifacts. Mock regression tests cover new loggers, exceptions, tool calls and each live helper. Offline gates: `make lint`, `make typecheck`, `make test` (128 passed, 90.34% coverage), `make spec`, two deterministic `make eval` runs, `make demo`, and `make check-secrets` all passed. The ignored audit file scan found no raw identifier fields or credential markers. No live request was made for this fix; post-fix live screenshot safety still needs confirmation.
 - [x] OAuth refresh diagnostics and cross-process access-token cache — Accounts failures now expose only safe status/error/description/host or exception class; the private `0600` token file persists access-token expiry and is reused for five minutes of validity. Offline gates: `make test` 119 passed / 90.26% coverage, lint/typecheck/spec/secrets clean. No live call made during this change.
 - [x] `make zoho-token` hardening — hidden grant-code prompt; invalid/expired grant guidance; API-domain/DC validation; `0600` token-file persistence; code/token non-disclosure verified in `tests/test_zoho_token.py`.
 - [x] `make live-probe` and `make live-assert` — shape-only report and expected-data assertions are implemented and covered offline. Neither has been run against Zoho; `docs/LIVE_FINDINGS.md` remains an INCONCLUSIVE template.
@@ -23,7 +24,7 @@ This checklist records commands actually run in this workspace. A green offline 
 - [x] `make check-secrets` — secrets audit clean. Obvious mock/example placeholders are excluded from the secret-like literal match.
 - [x] `make live-smoke` — skipped cleanly with credential variables unset; refresh token may be read from the private token file.
 - [x] `make clean-clone-test` — passed against commit `a63b8de`; README placeholder check passed, fresh clone installed 47 locked packages, deterministic SIMULATED eval printed updated 1.65 calls/dispute and 9.6% combined quota, offline demo completed (5 events / 3 retries / 1 throttled call), and MCP spec generated and verified.
-- [ ] Live Zoho verification and author-captured screenshots — pending external org credentials and author confirmation. Do not substitute mock output.
+- [ ] Full live verification and author-captured screenshots — preflight and smoke passed, but the post-fix live smoke, probe, and assertions still need to be run and reviewed. Do not substitute mock output.
 
 ## Requirement evidence map
 

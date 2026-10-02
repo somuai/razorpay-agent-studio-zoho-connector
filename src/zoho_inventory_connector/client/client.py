@@ -198,7 +198,8 @@ class ZohoClient:
 
             # F) 404 Not Found (FR-2.2)
             if res.status_code == 404 or zoho_code in (1002, 1003):
-                raise NotFoundError(resource=clean_endpoint, identifier=str(req_params))
+                # Do not include query parameters: they contain the organization ID.
+                raise NotFoundError(resource=clean_endpoint.split("/", 1)[0], identifier="[masked]")
 
             # G) 5xx Server Error (FR-2.4)
             if res.status_code >= 500:

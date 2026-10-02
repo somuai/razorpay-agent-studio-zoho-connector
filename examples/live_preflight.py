@@ -16,6 +16,7 @@ import httpx
 
 from zoho_inventory_connector.auth.oauth import DC_API_MAP
 from zoho_inventory_connector.auth.token_manager import TokenManager
+from zoho_inventory_connector.events.logging_safety import redact_text
 
 REQUIRED_ENV = (
     "ZOHO_CLIENT_ID",
@@ -100,7 +101,10 @@ def _diagnostic(response: httpx.Response, path: str, host: str) -> str:
         fix = "check quota or rate limits"
     else:
         fix = "inspect API_NOTES.md and check connectivity"
-    return f"endpoint {path}; HTTP {response.status_code}; Zoho code {code!r}; message {safe_message!r}; host {host}; fix: {fix}"
+    return redact_text(
+        f"endpoint {path}; HTTP {response.status_code}; Zoho code {code!r}; "
+        f"message {safe_message!r}; host {host}; fix: {fix}"
+    )
 
 
 async def run_preflight(

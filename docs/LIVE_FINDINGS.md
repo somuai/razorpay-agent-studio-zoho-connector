@@ -1,8 +1,8 @@
 # Zoho live API findings
 
-> This file is a report destination, not evidence by itself. `make live-probe` replaces it only after a credentialed run against the authorized personal throwaway organization. No live probe has been run yet. Do not claim a result until the command is run and the generated observations are reviewed.
+> This file separates observations already made during the authorized live preflight/smoke from API facts still awaiting `make live-probe`. No full live probe or live assertion has been run. Do not claim a result until the command is run and the generated observations are reviewed.
 
-Calls issued: not run (0).
+Live-probe calls issued: not run (0). The separately authorized preflight used 8 API calls, and the prior live smoke used 14; neither produced the shape-only probe report.
 
 | Probe | Result | Observed response shape / note | Update |
 |---|---|---|---|
@@ -12,9 +12,14 @@ Calls issued: not run (0).
 | Sales-order filters, including `reference_number` | INCONCLUSIVE | Awaiting fixture orders in the throwaway org. | `docs/API_NOTES.md` |
 | Pagination and `per_page` behavior | INCONCLUSIVE | Awaiting authorized live run. | `docs/API_NOTES.md` |
 | Package detail `shipment_order` embedding | INCONCLUSIVE | Awaiting package and shipment fixtures. | `docs/API_NOTES.md` |
-| Shipment fields and delivered-at timestamp | INCONCLUSIVE | Awaiting shipped package fixtures. | `docs/API_NOTES.md` |
+| Shipment fields and delivered-at timestamp | INCONCLUSIVE | Shipped test fixtures exist, but the shape-only live probe has not yet been run. | `docs/API_NOTES.md` |
 | `Retry-After` response header | INCONCLUSIVE | No throttling was induced; normal requests will only tell whether a header was naturally present. | `docs/API_NOTES.md` |
 | Missing-record response code | INCONCLUSIVE | Awaiting authorized live run. | `docs/API_NOTES.md` |
+| Scoped shipment detail route used by preflight | CONFIRMED | The read-scope check reached the route and received the expected not-found response for a nonexistent record. This does not establish a shipment list endpoint. | `docs/API_NOTES.md` |
+
+## Live run finding: request identifiers in HTTP logs
+
+During the authorized live smoke on 2026-10-02, HTTP request logs printed full Inventory request URLs, including organization and record identifiers. This was a logging defect; no identifier values are reproduced here. The connector now sets HTTPX/HTTPCore/urllib3 to WARNING by default and applies process-wide redaction to log records, exception text, connector telemetry, audit parameters, and not-found errors. Regression coverage exercises mock HTTP and each live helper without contacting Zoho. The live scripts have not been rerun after this fix, so screenshot safety on a subsequent live run remains to be confirmed.
 
 ## Facts a bounded read-only probe cannot settle
 
