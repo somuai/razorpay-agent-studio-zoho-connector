@@ -7,6 +7,10 @@ from collections.abc import Mapping
 from urllib.parse import urlparse
 
 _PROXY_ENV_NAMES = frozenset({"http_proxy", "https_proxy", "all_proxy", "no_proxy"})
+SANDBOX_NETWORK_GUIDANCE = (
+    "Network connection failed (not a credential error). If this is running inside a "
+    "sandboxed agent or CI, outbound network may be blocked; run the command from a normal terminal."
+)
 
 
 def transport_diagnostic(
@@ -53,4 +57,5 @@ def transport_diagnostic(
         "host": urlparse(url).hostname or "[unknown]",
         "attempt": attempt,
         "proxy_env_names": proxies,
+        "network_context_hint": SANDBOX_NETWORK_GUIDANCE,
     }

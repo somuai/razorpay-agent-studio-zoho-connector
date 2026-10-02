@@ -309,6 +309,10 @@ async def test_transport_error_retries_then_maps_to_upstream_error() -> None:
         "host": "inventory.invalid",
         "attempt": 2,
         "proxy_env_names": [],
+        "network_context_hint": (
+            "Network connection failed (not a credential error). If this is running inside a "
+            "sandboxed agent or CI, outbound network may be blocked; run the command from a normal terminal."
+        ),
     }
 
 
@@ -330,6 +334,10 @@ def test_transport_diagnostic_reports_safe_cause_phase_host_attempt_and_proxy_na
         "host": "api.example.invalid",
         "attempt": 3,
         "proxy_env_names": ["HTTPS_PROXY", "NO_PROXY"],
+        "network_context_hint": (
+            "Network connection failed (not a credential error). If this is running inside a "
+            "sandboxed agent or CI, outbound network may be blocked; run the command from a normal terminal."
+        ),
     }
     assert "secret-proxy-value" not in str(diagnostic)
     assert "123456789012345" not in str(diagnostic)

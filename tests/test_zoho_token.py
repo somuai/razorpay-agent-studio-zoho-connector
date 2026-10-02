@@ -1,6 +1,7 @@
 """Offline tests for hidden-code exchange and private token persistence."""
 
 import asyncio
+import hashlib
 import json
 import os
 from pathlib import Path
@@ -45,6 +46,9 @@ def test_grant_code_is_not_echoed_and_token_file_is_private(
     assert json.loads(token_path.read_text()) == {
         "refresh_token": "sensitive-refresh-token",
         "api_domain": "https://www.zohoapis.in",
+        "client_credentials_fingerprint": hashlib.sha256(
+            b"client-id-secret\0client-secret-value"
+        ).hexdigest(),
     }
     assert os.stat(token_path).st_mode & 0o777 == 0o600
 

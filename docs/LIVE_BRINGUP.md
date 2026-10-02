@@ -2,6 +2,8 @@
 
 Live mode remains **not verified** until the author confirms the final read-only smoke run against a personal throwaway Zoho Inventory organization in the India data center. Never use the institutional organization. Keep `.env`, grant codes, refresh tokens, account identifiers, and screenshots with personal data out of Git and chat.
 
+Run live commands from the author's normal local terminal, not an agent sandbox or CI environment that may block outbound network access. A connect timeout has no HTTP status and is not a credential rejection; its diagnostics include the exception class, phase and host plus a sandbox-network hint. Mock-mode tests and offline gates can still run inside a sandbox.
+
 ## One-time manual setup
 
 Create the throwaway organization and fictional records using [LIVE_TEST_DATA.md](LIVE_TEST_DATA.md). Create a Zoho Self Client with only the read scopes listed in [API_NOTES.md](API_NOTES.md). Put the client ID, client secret, `ZOHO_ORG_ID`, and `ZOHO_DC=in` in the local ignored `.env` file. The shell must export these values because Make does not load `.env` automatically. `ZOHO_REFRESH_TOKEN` may be blank; `make zoho-token` stores it in the private token file. Do not paste credentials or grant codes into chat.
@@ -40,8 +42,8 @@ Inventory resource operations in preflight, smoke, probe, and assertion are GET-
 |---|---|---|
 | Required variables missing | Local environment is incomplete | Set the credential names listed by preflight in the shell; never print values. |
 | Token file missing or permissions too broad | No private refresh token is available or its file is unsafe | Run `make zoho-token`; it writes with mode `0600`. |
-| Cached token does not match client credentials | Access-token cache belongs to a different client configuration or predates credential binding | Confirm the Self Client credentials, then run preflight once; a successful refresh binds the new cache. |
-| Python `httpx` connect timeout | Python could not open the Zoho connection; curl may use a different resolver or TLS path | Check the network/VPN and retry after connectivity recovers; avoid repeated token attempts. |
+| Cached token does not match client credentials, or token-file binding is unavailable | Access-token cache belongs to a different client configuration or predates credential binding | Confirm the Self Client credentials, generate a fresh grant, and run `make zoho-token` to bind the new token file. |
+| Python `httpx` connect timeout | No HTTP response was received; this is not a credential error. A sandbox or CI network policy may block outbound connections. | Run the live command from the author's normal local terminal. If it also fails there, check the network/VPN and retry after connectivity recovers; avoid repeated token attempts. |
 | OAuth `invalid_grant` | Refresh grant is expired, revoked, or belongs to another client | Generate a fresh read-only code and exchange it immediately. |
 | OAuth `invalid_client` | Current client ID/secret do not match the token's client | Verify the Self Client credentials; do not retry token minting repeatedly. |
 | Token endpoint HTTP 429 or throttle text | Zoho rejected token generation as too frequent | Wait at least 10 minutes before another token request. |

@@ -176,6 +176,27 @@ async def test_expired_grant_fails_without_secret_leak(
 
 
 @pytest.mark.asyncio
+async def test_token_connect_timeout_is_not_reported_as_credential_failure(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    def fail_connect(_: httpx.Request) -> httpx.Response:
+        raise httpx.ConnectTimeout("private connection detail")
+
+    api, _, _ = _http_clients()
+    token = httpx.AsyncClient(transport=httpx.MockTransport(fail_connect))
+    try:
+        assert await run_preflight(_environment(tmp_path), api_http=api, token_http=token) == 1
+    finally:
+        await api.aclose()
+        await token.aclose()
+    output = capsys.readouterr().out
+    assert "network connection failed (not a credential error)" in output
+    assert "sandboxed agent or CI" in output
+    assert "check client credentials" not in output
+    assert "private connection detail" not in output
+
+
+@pytest.mark.asyncio
 async def test_wrong_data_center_fails_before_inventory_calls(
     tmp_path: Path, capsys: pytest.CaptureFixture[str]
 ) -> None:

@@ -19,6 +19,7 @@ from zoho_inventory_connector.auth.oauth import (
     get_api_base_url,
 )
 from zoho_inventory_connector.auth.token_manager import TokenManager
+from zoho_inventory_connector.client.errors import AuthError
 from zoho_inventory_connector.ratelimit.clock import VirtualClock
 
 
@@ -237,9 +238,41 @@ async def test_cached_access_token_is_bound_to_client_credentials(
         assert await first.get_access_token() == "access-for-client-A"
         second = TokenManager(second_id, second_secret, token_file=token_file)
         assert not second.is_token_valid()
-        assert await second.get_access_token() == f"access-for-{second_id}"
-        assert second.refresh_token == "refresh-A"
-    assert refresh_clients == ["client-A", "client-B", "client-A", "client-A"]
+        with pytest.raises(AuthError, match="different or unknown Zoho client credentials"):
+            await second.get_access_token()
+        assert second.refresh_token is None
+    assert refresh_clients == ["client-A", "client-A"]
+
+
+@pytest.mark.asyncio
+async def test_mismatched_token_file_requires_new_grant_but_explicit_refresh_wins(
+    tmp_path: Path,
+) -> None:
+    token_file = tmp_path / "mismatched.json"
+    token_file.write_text(
+        json.dumps(
+            {
+                "refresh_token": "old-client-refresh",
+                "client_credentials_fingerprint": hashlib.sha256(
+                    b"old-client\0old-secret"
+                ).hexdigest(),
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    mismatched = TokenManager("new-client", "new-secret", token_file=token_file)
+    assert mismatched.refresh_token is None
+    with pytest.raises(AuthError, match="different or unknown Zoho client credentials"):
+        await mismatched.get_access_token()
+
+    explicit = TokenManager(
+        "new-client",
+        "new-secret",
+        refresh_token="explicit-current-client-refresh",
+        token_file=token_file,
+    )
+    assert explicit.refresh_token == "explicit-current-client-refresh"
 
 
 def test_concurrent_token_file_writers_are_atomic_and_preserve_refresh_token(

@@ -83,7 +83,9 @@ class TokenManager:
             credentials_match = (
                 data.get("client_credentials_fingerprint") == self._credentials_fingerprint
             )
-            if "refresh_token" in data and not self.refresh_token:
+            # A refresh token belongs to the client that minted it. Never pair
+            # a token-file refresh token with different or unknown credentials.
+            if credentials_match and "refresh_token" in data and not self.refresh_token:
                 self.refresh_token = data["refresh_token"]
             if credentials_match and data.get("api_domain"):
                 self._api_domain = data["api_domain"]
@@ -185,8 +187,19 @@ class TokenManager:
                 return self._access_token
 
             if not self.refresh_token:
+                cache_unbound = bool(
+                    self.token_file
+                    and self.token_file.exists()
+                    and self._has_unbound_cached_refresh_token()
+                )
+                message = (
+                    "Token file belongs to different or unknown Zoho client credentials. "
+                    "Run make zoho-token with the current Self Client."
+                    if cache_unbound
+                    else "No refresh token configured. Run OAuth authorization or provide ZOHO_REFRESH_TOKEN."
+                )
                 raise AuthError(
-                    message="No refresh token configured. Run OAuth authorization or provide ZOHO_REFRESH_TOKEN.",
+                    message=message,
                     agent_guidance="Authentication failed because no refresh token is present; re-authenticate the merchant.",
                 )
 
@@ -240,3 +253,17 @@ class TokenManager:
         self._expires_at_epoch = 0.0
         if persist:
             self.save_tokens_to_file()
+
+    def _has_unbound_cached_refresh_token(self) -> bool:
+        """Tell callers when a token file cannot safely be used with this client."""
+        if not self.token_file:
+            return False
+        try:
+            data = json.loads(self.token_file.read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            return False
+        return (
+            isinstance(data, dict)
+            and bool(data.get("refresh_token"))
+            and data.get("client_credentials_fingerprint") != self._credentials_fingerprint
+        )

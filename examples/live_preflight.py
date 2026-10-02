@@ -192,20 +192,28 @@ async def run_preflight(
             access_token = await token_manager.get_access_token()
         except Exception as exc:
             safe_message = str(getattr(exc, "message", ""))
-            if "invalid_grant" in safe_message:
+            diagnostic = getattr(exc, "transport_diagnostic", None)
+            if isinstance(diagnostic, Mapping):
+                fix = str(diagnostic.get("network_context_hint", "check network connectivity"))
+                failure = "access-token network connection failed (not a credential error)"
+            elif "invalid_grant" in safe_message:
                 fix = "refresh token is expired or revoked; generate a new read-only grant with make zoho-token"
+                failure = "access-token refresh failed"
             elif "invalid_client" in safe_message:
                 fix = "check the client ID/secret pair and API Console data center"
+                failure = "access-token refresh failed"
             elif any(
                 marker in safe_message.lower()
                 for marker in ("access_denied", "too many requests", "http 429", "rate limit")
             ):
                 fix = "Zoho may be throttling token generation; wait 10 minutes before retrying"
+                failure = "access-token refresh failed"
             else:
                 fix = "check client credentials and regenerate the refresh token"
+                failure = "access-token refresh failed"
             _say(
                 "FAIL",
-                "access-token refresh failed"
+                failure
                 + (
                     "; " + redact_text(safe_message)[:300]
                     if isinstance(exc, AuthError) and safe_message
@@ -213,7 +221,6 @@ async def run_preflight(
                 ),
                 fix,
             )
-            diagnostic = getattr(exc, "transport_diagnostic", None)
             if diagnostic:
                 print("TRANSPORT: " + str(diagnostic))
             print(f"API calls used: {calls}")
@@ -267,7 +274,7 @@ async def run_preflight(
                 _say(
                     "FAIL",
                     f"endpoint {path}; transport {diagnostic}",
-                    "check connectivity",
+                    str(diagnostic.get("network_context_hint", "check connectivity")),
                 )
                 raise
             try:

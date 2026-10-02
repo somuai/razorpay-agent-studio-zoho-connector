@@ -10,7 +10,10 @@ from urllib.parse import urlparse
 import httpx
 
 from zoho_inventory_connector.client.errors import AuthError
-from zoho_inventory_connector.client.transport_diagnostics import transport_diagnostic
+from zoho_inventory_connector.client.transport_diagnostics import (
+    SANDBOX_NETWORK_GUIDANCE,
+    transport_diagnostic,
+)
 from zoho_inventory_connector.events.logging_safety import redact_text
 
 DC_ACCOUNTS_MAP: dict[str, str] = {
@@ -166,7 +169,10 @@ async def exchange_code_for_tokens(
             diagnostic = transport_diagnostic(exc, token_url, attempt=1)
             diagnostic["operation"] = "exchange"
             raise AuthError(
-                message="Zoho Accounts authorization-code exchange transport failure.",
+                message=(
+                    "Zoho Accounts authorization-code exchange transport failure. "
+                    + SANDBOX_NETWORK_GUIDANCE
+                ),
                 http_status=None,
                 transport_diagnostic=diagnostic,
             ) from None
@@ -202,7 +208,7 @@ async def refresh_access_token(
             diagnostic = transport_diagnostic(exc, token_url, attempt=1)
             diagnostic["operation"] = "refresh"
             raise AuthError(
-                message="Zoho Accounts refresh transport failure.",
+                message="Zoho Accounts refresh transport failure. " + SANDBOX_NETWORK_GUIDANCE,
                 http_status=None,
                 transport_diagnostic=diagnostic,
             ) from None

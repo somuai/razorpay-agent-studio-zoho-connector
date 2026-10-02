@@ -160,3 +160,5 @@ async def test_oauth_transport_errors_report_only_safe_classes_and_phase(
     assert "private timeout" not in rendered
     assert "private TLS failure" not in rendered
     assert "private certificate detail" not in rendered
+    assert "Network connection failed (not a credential error)" in str(exc_info.value)
+    assert "sandboxed agent or CI" in str(diagnostic["network_context_hint"])

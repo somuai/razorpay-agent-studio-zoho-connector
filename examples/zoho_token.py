@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import getpass
+import hashlib
 import json
 import os
 import urllib.parse
@@ -15,13 +16,26 @@ from zoho_inventory_connector.auth.oauth import (
 )
 
 
-def _persist_tokens(path: Path, refresh_token: str, api_domain: str | None) -> None:
+def _persist_tokens(
+    path: Path,
+    refresh_token: str,
+    api_domain: str | None,
+    client_id: str,
+    client_secret: str,
+) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     tmp = path.with_suffix(path.suffix + ".tmp")
     fd = os.open(tmp, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
     try:
         with os.fdopen(fd, "w", encoding="utf-8") as stream:
-            json.dump({"refresh_token": refresh_token, "api_domain": api_domain}, stream)
+            payload = {
+                "refresh_token": refresh_token,
+                "api_domain": api_domain,
+                "client_credentials_fingerprint": hashlib.sha256(
+                    f"{client_id}\0{client_secret}".encode()
+                ).hexdigest(),
+            }
+            json.dump(payload, stream)
             stream.write("\n")
         os.replace(tmp, path)
         os.chmod(path, 0o600)
@@ -94,7 +108,13 @@ async def _run() -> int:
         )
         return 1
     token_path = Path(os.environ.get("ZOHO_TOKEN_FILE", ".zoho_token.json"))
-    _persist_tokens(token_path, str(refresh_token), tokens.get("api_domain"))
+    _persist_tokens(
+        token_path,
+        str(refresh_token),
+        tokens.get("api_domain"),
+        client_id,
+        client_secret,
+    )
     print(
         "Refresh token saved to the private token file with mode 0600; value hidden. DC check passed."
     )
