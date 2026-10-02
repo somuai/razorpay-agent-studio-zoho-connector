@@ -5,7 +5,9 @@ from typing import Any
 
 from zoho_inventory_connector.client.client import ZohoClient
 from zoho_inventory_connector.client.errors import InputValidationError, NotFoundError
-from zoho_inventory_connector.client.parsing import parse_upstream_float
+from zoho_inventory_connector.client.parsing import (
+    parse_optional_upstream_float,
+)
 from zoho_inventory_connector.client.query_builder import ValidatedQueryBuilder
 from zoho_inventory_connector.models.item import (
     ItemStockAvailability,
@@ -117,6 +119,7 @@ class StockService:
                         sku=ident,
                         name="Unknown Product",
                         status=StockStatus.UNKNOWN,
+                        availability_note="No exact Zoho item match was found for this identifier.",
                         quantity_sellable=0.0,
                         source_stock_field="none",
                         reorder_level=self.default_low_stock_threshold,
@@ -142,10 +145,16 @@ class StockService:
                     if raw_qty is not None:
                         stock_field = "locations[0].location_actual_available_stock"
 
-            has_availability = raw_qty is not None
-            sellable_qty = parse_upstream_float(raw_qty, stock_field)
-            reorder_lvl = parse_upstream_float(
-                item_raw.get("reorder_level"), "reorder_level", self.default_low_stock_threshold
+            sellable_qty = parse_optional_upstream_float(raw_qty, stock_field)
+            has_availability = sellable_qty is not None
+            # The fallback threshold is configuration, not an observation about
+            # the item. Preserve missing/malformed stock as unknown.
+            sellable_qty = sellable_qty if sellable_qty is not None else 0.0
+            reorder_lvl = parse_optional_upstream_float(
+                item_raw.get("reorder_level"), "reorder_level"
+            )
+            reorder_lvl = (
+                reorder_lvl if reorder_lvl is not None else self.default_low_stock_threshold
             )
             if reorder_lvl <= 0:
                 reorder_lvl = self.default_low_stock_threshold
@@ -175,12 +184,12 @@ class StockService:
                                         wh.get("warehouse_name", "Unknown location"),
                                     )
                                 ),
-                                stock_on_hand=parse_upstream_float(
+                                stock_on_hand=parse_optional_upstream_float(
                                     wh.get("location_stock_on_hand")
                                     or wh.get("warehouse_stock_on_hand"),
                                     "location_stock_on_hand",
                                 ),
-                                available_stock=parse_upstream_float(
+                                available_stock=parse_optional_upstream_float(
                                     wh.get("location_actual_available_stock"),
                                     "location_actual_available_stock",
                                 ),
@@ -193,6 +202,11 @@ class StockService:
                     sku=str(item_raw.get("sku", ident)),
                     name=str(item_raw.get("name", "Product")),
                     status=status,
+                    availability_note=(
+                        "Zoho did not provide a usable available-stock value; verify the item or stock-field mapping."
+                        if status == StockStatus.UNKNOWN
+                        else None
+                    ),
                     quantity_sellable=sellable_qty,
                     source_stock_field=stock_field,
                     reorder_level=reorder_lvl,

@@ -19,8 +19,8 @@ class WarehouseStock(BaseModel):
 
     warehouse_id: str
     warehouse_name: str
-    stock_on_hand: float = 0.0
-    available_stock: float = 0.0
+    stock_on_hand: float | None = None
+    available_stock: float | None = None
 
 
 class ItemProjection(BaseModel):
@@ -34,9 +34,10 @@ class ItemProjection(BaseModel):
     status: str = "active"
     price: float = Field(default=0.0, description="Item sales price")
     currency_code: str = "INR"
-    stock_on_hand: float = 0.0
-    actual_available_stock: float = 0.0
-    reorder_level: float = 0.0
+    # Missing inventory fields must remain unavailable, not be turned into zero.
+    stock_on_hand: float | None = None
+    actual_available_stock: float | None = None
+    reorder_level: float | None = None
     unit: str = "pcs"
     description: str | None = None
 
@@ -50,6 +51,10 @@ class ItemStockAvailability(BaseModel):
     sku: str
     name: str
     status: StockStatus
+    availability_note: str | None = Field(
+        default=None,
+        description="Why availability is unknown when the upstream schema lacks a usable stock value",
+    )
     quantity_sellable: float = Field(
         ...,
         description="Quantity from the selected Zoho availability field; merchant sellability rules must be confirmed",

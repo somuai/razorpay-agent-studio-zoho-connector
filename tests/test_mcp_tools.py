@@ -9,7 +9,7 @@ from mock_zoho.app import app
 from mock_zoho.faults import faults
 from zoho_inventory_connector.auth.token_manager import TokenManager
 from zoho_inventory_connector.client.client import ZohoClient
-from zoho_inventory_connector.client.errors import AuditSinkError, InvalidResponseError
+from zoho_inventory_connector.client.errors import AuditSinkError, UpstreamError
 from zoho_inventory_connector.events.audit import AuditEvent, default_audit_logger
 from zoho_inventory_connector.events.emitter import default_emitter
 from zoho_inventory_connector.mcp_server.server import (
@@ -153,7 +153,7 @@ async def test_tool_argument_validation_errors_are_actionable() -> None:
 
 
 @pytest.mark.asyncio
-async def test_malformed_upstream_numeric_field_returns_typed_tool_error(
+async def test_malformed_upstream_stock_field_degrades_to_unknown(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """Malformed stock values become safe tool errors instead of escaping as ValueError."""
@@ -170,8 +170,53 @@ async def test_malformed_upstream_numeric_field_returns_typed_tool_error(
 
     monkeypatch.setattr(client, "get", malformed_get)
     result = await get_stock_availability(["SKU-1"], bypass_cache=True)
-    assert result["error"] == InvalidResponseError.__name__
-    assert "actual_available_stock" in result["message"]
+    assert result["items"][0]["status"] == "unknown"
+    assert result["items"][0]["quantity_sellable"] == 0.0
+    assert "usable available-stock" in result["items"][0]["availability_note"]
+
+
+@pytest.mark.asyncio
+async def test_list_orders_missing_page_context_and_extra_fields_are_tolerated(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from zoho_inventory_connector.mcp_server import server
+
+    client = server.get_client()
+
+    async def drifted_get(*args: object, **kwargs: object) -> tuple[dict[str, object], bool, str]:
+        return (
+            {
+                "salesorders": [
+                    {"salesorder_id": "so_1", "total": "12.50", "extra_field": "ignored"}
+                ]
+            },
+            False,
+            "2026-10-02T00:00:00+00:00",
+        )
+
+    monkeypatch.setattr(client, "get", drifted_get)
+    result = await list_sales_orders(page=1, per_page=10)
+    assert result["has_more"] is False
+    assert result["next_page"] is None
+    assert result["sales_orders"][0]["total_amount"] == 12.5
+
+
+@pytest.mark.asyncio
+async def test_sales_order_list_400_gives_verified_fallback_guidance(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from zoho_inventory_connector.mcp_server import server
+
+    client = server.get_client()
+
+    async def rejected_list(*args: object, **kwargs: object) -> tuple[dict[str, object], bool, str]:
+        raise UpstreamError("Bad request", http_status=400)
+
+    monkeypatch.setattr(client, "get", rejected_list)
+    result = await list_sales_orders(page=1, per_page=10)
+    assert result["error"] == "SalesOrderListUnsupportedError"
+    assert "verified salesorder_id" in result["agent_guidance"]
+    assert "reference_number" in result["agent_guidance"]
 
 
 @pytest.mark.asyncio

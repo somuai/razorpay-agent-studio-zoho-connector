@@ -102,3 +102,46 @@ async def test_fulfillment_evidence_composition(mock_client: ZohoClient) -> None
     ev_none = await dispute_service.get_order_fulfillment_evidence("so_9999")
     assert ev_none.completeness == EvidenceCompleteness.NONE
     assert "does not exist" in ev_none.fulfillment_summary
+
+
+@pytest.mark.asyncio
+async def test_stock_schema_drift_preserves_unknown_and_accepts_numeric_strings(
+    mock_client: ZohoClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Missing/null/malformed stock does not become a false out-of-stock decision."""
+    payloads = {
+        "item_1": {"item_id": "item_1", "sku": "KHG-001", "actual_available_stock": "7"},
+        "item_2": {"item_id": "item_2", "sku": "KHG-002", "actual_available_stock": None},
+        "item_3": {"item_id": "item_3", "sku": "KHG-003", "stock_on_hand": "bad"},
+        "item_4": {
+            "item_id": "item_4",
+            "sku": "KHG-004",
+            "locations": [{"location_actual_available_stock": "2"}],
+        },
+    }
+
+    async def changed_schema_get(
+        endpoint: str, **kwargs: object
+    ) -> tuple[dict[str, object], bool, str]:
+        item_id = endpoint.rsplit("/", 1)[-1]
+        return (
+            {"item": payloads[item_id], "unexpected_extra": "ignored"},
+            False,
+            "2026-10-02T00:00:00+00:00",
+        )
+
+    monkeypatch.setattr(mock_client, "get", changed_schema_get)
+    service = StockService(mock_client)
+
+    in_stock = (await service.get_stock_availability(["item_1"])).items[0]
+    null_stock = (await service.get_stock_availability(["item_2"])).items[0]
+    malformed = (await service.get_stock_availability(["item_3"])).items[0]
+    one_location = (await service.get_stock_availability(["item_4"])).items[0]
+
+    assert in_stock.status == StockStatus.IN_STOCK
+    assert in_stock.quantity_sellable == 7.0
+    assert null_stock.status == StockStatus.UNKNOWN
+    assert "usable available-stock" in (null_stock.availability_note or "")
+    assert malformed.status == StockStatus.UNKNOWN
+    assert one_location.status == StockStatus.LOW_STOCK
+    assert one_location.quantity_sellable == 2.0

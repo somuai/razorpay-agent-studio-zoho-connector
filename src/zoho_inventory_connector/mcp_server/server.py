@@ -18,8 +18,12 @@ from zoho_inventory_connector.client.errors import (
     AuditSinkError,
     ConnectorError,
     InputValidationError,
+    UpstreamError,
 )
-from zoho_inventory_connector.client.parsing import parse_upstream_float
+from zoho_inventory_connector.client.parsing import (
+    parse_optional_upstream_float,
+    parse_upstream_float,
+)
 from zoho_inventory_connector.client.query_builder import ValidatedQueryBuilder
 from zoho_inventory_connector.events.audit import AuditEvent, default_audit_logger
 from zoho_inventory_connector.events.emitter import ToolExecutionEvent, default_emitter
@@ -29,6 +33,14 @@ from zoho_inventory_connector.services.dispute_service import DisputeService
 from zoho_inventory_connector.services.stock_service import StockService
 
 MAX_OUTPUT_BYTES = 8192  # 8 KB hard cap for LLM context safety (FR-6.2)
+
+
+def _dict_rows(value: object) -> list[dict[str, Any]]:
+    """Keep schema-drifted collection values from crashing a tool projection."""
+    if not isinstance(value, list):
+        return []
+    return [row for row in value if isinstance(row, dict)]
+
 
 # Initialize FastMCP Server
 mcp = FastMCP("zoho-inventory-connector")
@@ -199,8 +211,10 @@ async def list_items(
             params["status"] = st
 
         data, is_cached, as_of = await get_client().get("/items", params=params, cache_ttl=300.0)
-        items_raw = data.get("items", [])
+        items_raw = _dict_rows(data.get("items", []))
         page_ctx = data.get("page_context", {})
+        if not isinstance(page_ctx, dict):
+            page_ctx = {}
 
         items_projected = [
             {
@@ -209,11 +223,15 @@ async def list_items(
                 "sku": str(it.get("sku")),
                 "status": str(it.get("status")),
                 "rate": parse_upstream_float(it.get("rate"), "rate"),
-                "stock_on_hand": parse_upstream_float(it.get("stock_on_hand"), "stock_on_hand"),
-                "actual_available_stock": parse_upstream_float(
+                "stock_on_hand": parse_optional_upstream_float(
+                    it.get("stock_on_hand"), "stock_on_hand"
+                ),
+                "actual_available_stock": parse_optional_upstream_float(
                     it.get("actual_available_stock"), "actual_available_stock"
                 ),
-                "reorder_level": parse_upstream_float(it.get("reorder_level"), "reorder_level"),
+                "reorder_level": parse_optional_upstream_float(
+                    it.get("reorder_level"), "reorder_level"
+                ),
             }
             for it in items_raw
         ]
@@ -279,6 +297,8 @@ async def get_item(item_id: str) -> dict[str, Any]:
         clean_id = ValidatedQueryBuilder.validate_numeric_id(item_id, field_name="item_id")
         data, is_cached, as_of = await get_client().get(f"/items/{clean_id}", cache_ttl=300.0)
         it = data.get("item", {})
+        if not isinstance(it, dict):
+            it = {}
 
         result = {
             "item_id": str(it.get("item_id")),
@@ -287,11 +307,15 @@ async def get_item(item_id: str) -> dict[str, Any]:
             "status": str(it.get("status")),
             "rate": parse_upstream_float(it.get("rate"), "rate"),
             "currency_code": str(it.get("currency_code", "INR")),
-            "stock_on_hand": parse_upstream_float(it.get("stock_on_hand"), "stock_on_hand"),
-            "actual_available_stock": parse_upstream_float(
+            "stock_on_hand": parse_optional_upstream_float(
+                it.get("stock_on_hand"), "stock_on_hand"
+            ),
+            "actual_available_stock": parse_optional_upstream_float(
                 it.get("actual_available_stock"), "actual_available_stock"
             ),
-            "reorder_level": parse_upstream_float(it.get("reorder_level"), "reorder_level"),
+            "reorder_level": parse_optional_upstream_float(
+                it.get("reorder_level"), "reorder_level"
+            ),
             "unit": str(it.get("unit", "pcs")),
             "description": it.get("description"),
             "as_of": as_of,
@@ -362,15 +386,16 @@ async def search_items(
             params["search_text"] = search_term
 
         data, is_cached, as_of = await get_client().get("/items", params=params, cache_ttl=120.0)
-        items_raw = data.get("items", [])
+        items_raw = _dict_rows(data.get("items", []))
 
         results = []
         for it in items_raw:
-            actual_avail = parse_upstream_float(
+            actual_avail = parse_optional_upstream_float(
                 it.get("actual_available_stock"), "actual_available_stock"
             )
-            reorder = parse_upstream_float(it.get("reorder_level"), "reorder_level", 5.0)
-            if only_low_stock and actual_avail > reorder:
+            reorder = parse_optional_upstream_float(it.get("reorder_level"), "reorder_level")
+            reorder = reorder if reorder is not None else 5.0
+            if only_low_stock and actual_avail is not None and actual_avail > reorder:
                 continue
 
             results.append(
@@ -381,8 +406,17 @@ async def search_items(
                     "rate": parse_upstream_float(it.get("rate"), "rate"),
                     "actual_available_stock": actual_avail,
                     "reorder_level": reorder,
-                    "is_low_stock": 0 < actual_avail <= reorder,
-                    "is_out_of_stock": actual_avail <= 0,
+                    "availability_status": (
+                        "unknown"
+                        if actual_avail is None
+                        else "out_of_stock"
+                        if actual_avail <= 0
+                        else "low_stock"
+                        if actual_avail <= reorder
+                        else "in_stock"
+                    ),
+                    "is_low_stock": actual_avail is not None and 0 < actual_avail <= reorder,
+                    "is_out_of_stock": actual_avail is not None and actual_avail <= 0,
                 }
             )
 
@@ -550,8 +584,10 @@ async def list_sales_orders(
         data, is_cached, as_of = await get_client().get(
             "/salesorders", params=params, cache_ttl=60.0
         )
-        orders_raw = data.get("salesorders", [])
+        orders_raw = _dict_rows(data.get("salesorders", []))
         page_ctx = data.get("page_context", {})
+        if not isinstance(page_ctx, dict):
+            page_ctx = {}
 
         orders_projected = [
             SalesOrderProjection.from_raw_zoho(so, include_pii=False).model_dump()
@@ -594,6 +630,14 @@ async def list_sales_orders(
                 request_id=req_id,
             )
         )
+        if isinstance(err, UpstreamError) and err.http_status == 400:
+            return {
+                "error": "SalesOrderListUnsupportedError",
+                "message": "Zoho rejected the sales-order list request. This organization may require a narrower, verified filter or a sales-order ID.",
+                "agent_guidance": "Use get_sales_order when you have a verified salesorder_id. Otherwise try search_sales_orders with a merchant-verified reference_number; do not guess IDs or payment matches.",
+                "retryable": False,
+                "http_status": 400,
+            }
         return err.to_dict()
 
 

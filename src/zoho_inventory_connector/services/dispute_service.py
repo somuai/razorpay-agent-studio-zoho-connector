@@ -9,7 +9,7 @@ from typing import Any
 
 from zoho_inventory_connector.client.client import ZohoClient
 from zoho_inventory_connector.client.errors import NotFoundError
-from zoho_inventory_connector.client.parsing import parse_upstream_float
+from zoho_inventory_connector.client.parsing import parse_optional_upstream_float
 from zoho_inventory_connector.client.query_builder import ValidatedQueryBuilder
 from zoho_inventory_connector.models.evidence import (
     EvidenceCompleteness,
@@ -134,7 +134,7 @@ class DisputeService:
             details={
                 "status": so_status,
                 "date": so_date,
-                "total": parse_upstream_float(so_data.get("total"), "salesorder.total"),
+                "total": parse_optional_upstream_float(so_data.get("total"), "salesorder.total"),
                 "currency": str(so_data.get("currency_code", "INR")),
             },
         )
@@ -147,7 +147,7 @@ class DisputeService:
                 source="invoices",
                 details={
                     "status": str(inv.get("status", "")),
-                    "total": parse_upstream_float(inv.get("total"), "invoice.total"),
+                    "total": parse_optional_upstream_float(inv.get("total"), "invoice.total"),
                     "date": str(inv.get("date", "")),
                 },
             )
