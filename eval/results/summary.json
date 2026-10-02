@@ -1,13 +1,13 @@
 {
   "disclaimer": "ALL METRICS ARE SIMULATED ON FICTIONAL DATA (seed=42) FOR KAVERI HOME GOODS. NEVER CONSTRUE AS PRODUCTION RESULTS.",
   "dispute_evaluation": {
-    "completeness_summary": {
-      "complete_evidence_count": 18,
-      "complete_evidence_pct": 45.0,
-      "no_evidence_count": 0,
-      "no_evidence_pct": 0.0,
-      "partial_evidence_count": 22,
-      "partial_evidence_pct": 55.0
+    "delivery_proof": {
+      "definition": "A carrier-confirmed delivered-at timestamp or equivalent.",
+      "mock_delivery_date_field_present_count": 18,
+      "mock_delivery_date_field_present_pct": 45.0,
+      "note": "The mock has a fictional delivery_date field; the reviewed Zoho shipment schema does not document delivered-at proof. Carrier integration is required.",
+      "schema_faithful_available_count": 0,
+      "schema_faithful_available_pct": 0.0
     },
     "missing_fields_breakdown": {
       "carrier": 18,
@@ -18,6 +18,14 @@
       "shipment_date": 18,
       "tracking_number": 22
     },
+    "mock_all_fields_completeness": {
+      "complete_evidence_count": 18,
+      "complete_evidence_pct": 45.0,
+      "no_evidence_count": 0,
+      "no_evidence_pct": 0.0,
+      "partial_evidence_count": 22,
+      "partial_evidence_pct": 55.0
+    },
     "ops_impact": {
       "api_calls_per_dispute_case": 2.1,
       "evidence_checklist_complete_cases": 18,
@@ -27,14 +35,20 @@
       "zoho_free_tier_quota_consumed_pct": 8.4
     },
     "simulation_mode": "SIMULATED",
-    "total_dispute_cases": 40
+    "total_dispute_cases": 40,
+    "zoho_documented_evidence": {
+      "complete_count": 18,
+      "complete_pct": 45.0,
+      "definition": "Order, invoice, package, shipment status, carrier, and tracking number are present."
+    }
   },
   "metrics_summary": {
-    "M1_discount_budget_saved_inr": 29562.2,
+    "M1_discount_spend_difference_inr": 29562.2,
     "M1_wasted_nudges_baseline_pct": 27.0,
     "M1_wasted_nudges_connector_pct": 0.0,
-    "M2_dispute_evidence_complete_pct": 45.0,
-    "M2_dispute_evidence_partial_pct": 55.0,
+    "M2_mock_all_fields_complete_pct": 45.0,
+    "M2_schema_faithful_delivery_proof_pct": 0.0,
+    "M2_zoho_documented_evidence_complete_pct": 45.0,
     "M3_cache_hit_pct": 87.85,
     "M3_cart_api_calls_per_decision": 0.15,
     "M3_total_calls_both_sims": 114,
@@ -52,8 +66,8 @@
     },
     "connector_aware_policy": {
       "correctly_nudged_count": 146,
-      "discount_budget_saved_inr": 29562.2,
       "discount_nudges": 86,
+      "discount_spend_difference_inr": 29562.2,
       "nudges_sent": 146,
       "scarcity_no_discount_nudges": 60,
       "suppressed_nudges": 54,
@@ -122,24 +136,50 @@
     "total_cart_events": 200
   },
   "quota_feasibility": {
-    "assumption": "The connector is the only consumer of its allocated share; capacity falls with shared org usage and changes with calls per decision/cache behavior.",
-    "calls_per_decision": 0.15,
+    "assumption": "Each distinct SKU lookup costs one upstream call in the cold-cache scenario. The 1,000-call quota is an assumption; actual cache hit rate depends on catalog size and traffic skew and must be measured. Other Zoho consumers reduce the connector's available share.",
     "daily_quota_assumption": 1000,
-    "rows": [
+    "scenarios": [
       {
-        "calls_available": 1000,
-        "decisions_per_day": 6666,
-        "quota_available_pct": 100
+        "cache_scenario": "warm_fixture_observed",
+        "calls_per_decision": 0.15,
+        "rows": [
+          {
+            "calls_available": 1000,
+            "decisions_per_day": 6666,
+            "quota_available_pct": 100
+          },
+          {
+            "calls_available": 500,
+            "decisions_per_day": 3333,
+            "quota_available_pct": 50
+          },
+          {
+            "calls_available": 250,
+            "decisions_per_day": 1666,
+            "quota_available_pct": 25
+          }
+        ]
       },
       {
-        "calls_available": 500,
-        "decisions_per_day": 3333,
-        "quota_available_pct": 50
-      },
-      {
-        "calls_available": 250,
-        "decisions_per_day": 1666,
-        "quota_available_pct": 25
+        "cache_scenario": "cold_cache_fixture_sku_mix",
+        "calls_per_decision": 1.235,
+        "rows": [
+          {
+            "calls_available": 1000,
+            "decisions_per_day": 809,
+            "quota_available_pct": 100
+          },
+          {
+            "calls_available": 500,
+            "decisions_per_day": 404,
+            "quota_available_pct": 50
+          },
+          {
+            "calls_available": 250,
+            "decisions_per_day": 202,
+            "quota_available_pct": 25
+          }
+        ]
       }
     ],
     "simulation_mode": "SIMULATED"

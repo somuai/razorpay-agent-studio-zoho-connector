@@ -34,8 +34,9 @@ async def test_eval_harness_determinism_and_labels(tmp_path: Path) -> None:
     m = summary_1["metrics_summary"]
     assert m["M1_wasted_nudges_baseline_pct"] > 20.0
     assert m["M1_wasted_nudges_connector_pct"] == 0.0
-    assert m["M1_discount_budget_saved_inr"] > 10000.0
-    assert m["M2_dispute_evidence_complete_pct"] > 40.0
+    assert m["M1_discount_spend_difference_inr"] > 10000.0
+    assert m["M2_zoho_documented_evidence_complete_pct"] == 45.0
+    assert m["M2_schema_faithful_delivery_proof_pct"] == 0.0
     assert m["M3_cart_api_calls_per_decision"] < 0.5
     assert m["M3_cache_hit_pct"] >= 80.0
 
@@ -43,11 +44,13 @@ async def test_eval_harness_determinism_and_labels(tmp_path: Path) -> None:
     assert [row["out_of_stock_rate_pct"] for row in sweep] == [2, 5, 10, 27]
     assert [row["baseline_unavailable_nudges"] for row in sweep] == [4, 10, 20, 54]
     assert all(row["connector_aware_unavailable_nudges"] == 0 for row in sweep)
-    assert [row["decisions_per_day"] for row in summary_1["quota_feasibility"]["rows"]] == [
-        6666,
-        3333,
-        1666,
-    ]
+    quota = summary_1["quota_feasibility"]["scenarios"]
+    assert [row["decisions_per_day"] for row in quota[0]["rows"]] == [6666, 3333, 1666]
+    assert quota[1]["calls_per_decision"] == 1.235
+    assert [row["decisions_per_day"] for row in quota[1]["rows"]] == [809, 404, 202]
+    delivery = summary_1["dispute_evaluation"]["delivery_proof"]
+    assert delivery["mock_delivery_date_field_present_count"] == 18
+    assert delivery["schema_faithful_available_count"] == 0
 
     # Rerun and verify byte-identical reproduction
     with open(summary_file, encoding="utf-8") as f:

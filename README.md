@@ -1,25 +1,36 @@
 # Zoho Inventory connector for Razorpay Agent Studio
 
+This is a read-only MCP connector that reports Zoho stock availability to cart agents and assembles recorded order and fulfillment evidence for dispute agents.
+
 ## The merchant problem
 
 **Fictional merchant:** Kaveri Home Goods, a Bangalore home-decor seller using Razorpay Checkout and Zoho Inventory. No merchant interview or real customer data is represented here.
 
-The stated asks are “recover more abandoned carts” and “win more chargebacks.” The problem hypothesis is narrower: cart agents may offer discounts for unavailable or scarce items, while dispute agents may lack order and fulfillment facts that operations staff have to assemble by hand. The connector adds read-only inventory and order context so an agent can make a better-informed decision and say exactly which evidence is missing.
+The stated asks are “recover more abandoned carts” and “win more chargebacks.” The hypothesis is that cart agents may discount unavailable items, while dispute agents may lack fulfillment facts that ops assembles by hand.
 
-The project measures three things: **M1** nudges and fictional discount spend associated with unavailable stock; **M2** how often seeded disputes have complete fulfillment evidence; and **M3** upstream calls per decision and estimated quota use. The 200-cart fixture assumes a 27% out-of-stock share (54 carts); the connector-aware result of zero unavailable nudges is guaranteed by its rule to suppress every cart labeled out of stock. These numbers are a **SIMULATED mechanism check**, not measured impact. The dispute result (18/40 complete, 22/40 partial) is completeness against fictional mock fields, including a `delivery_date` field not documented in Zoho's reviewed shipment schema; it does not show live Zoho evidence completeness. The deterministic sensitivity sweep at 2%, 5%, 10% and 27% shows how the mechanism's fictional discount arithmetic changes with the assumed stockout rate; the actual merchant rate is the first thing to measure. At 0.15 calls per decision, an assumed 1,000-call daily quota supports 6,666 decisions if the connector has the entire quota, 3,333 at 50%, and 1,666 at 25%; shared usage and cache behavior change this estimate. All eval outputs are SIMULATED. Reproduce them with `make eval`.
+## SIMULATED results
 
-**Delivery-proof gap:** Zoho's documented shipment record includes status, carrier and tracking number, but not a delivered-at timestamp. A Zoho-only connector therefore cannot provide carrier-confirmed delivery proof for chargebacks; the long-term fix is a carrier-tracking integration, validated with the merchant.
+| Measure | Result | Boundary |
+|---|---|---|
+| Cart policy mechanism | At the fixture's assumed 27% out-of-stock share: 54/200 baseline nudges versus 0 under the connector-aware rule | Zero is by construction, not measured impact. |
+| Zoho-documented dispute evidence fields | 18/40 mock cases contain order, invoice, package, shipment status, carrier, and tracking | Fixture result; not live Zoho coverage. |
+| Delivery proof | 0/40 in the schema-faithful assessment | Requires a carrier-tracking integration. |
+| Quota feasibility | Warm fixture: 0.15 calls/decision → 6,666 / 3,333 / 1,666 decisions at 100% / 50% / 25% quota. Cold cache: 1.235 calls/decision → 809 / 404 / 202. | Assumes a 1,000-call daily cap; actual hit rate depends on catalog size and traffic skew and must be measured. |
 
-| SIMULATED out-of-stock assumption | Baseline unavailable nudges | Baseline fictional discount on those carts |
+**SIMULATED M1 sensitivity** (same fictional discount offers; seed 42):
+
+| Assumed out-of-stock share | Unavailable nudges, baseline → aware | Wasted discount, baseline → aware (fictional INR) |
 |---:|---:|---:|
-| 2% | 4/200 | ₹924.60 |
-| 5% | 10/200 | ₹2,389.00 |
-| 10% | 20/200 | ₹4,493.30 |
-| 27% | 54/200 | ₹13,315.40 |
+| 2% | 4 → 0 | ₹924.60 → ₹0.00 |
+| 5% | 10 → 0 | ₹2,389.00 → ₹0.00 |
+| 10% | 20 → 0 | ₹4,493.30 → ₹0.00 |
+| 27% | 54 → 0 | ₹13,315.40 → ₹0.00 |
 
-The sweep reassigns out-of-stock labels across the same fictional discount offers using seed 42. The connector-aware value is zero by construction under its suppression rule; none of these values estimates merchant impact. At the simulated 0.15 calls/decision, the assumed 1,000-call cap supports 6,666 / 3,333 / 1,666 daily decisions at 100% / 50% / 25% available quota, respectively. Run `make eval` for the full table and assumptions.
+The connector-aware zero is guaranteed by its suppression rule; neither column estimates merchant impact. Measure the merchant's real out-of-stock share first. All evaluation outputs are **SIMULATED**; reproduce the tables with `make eval`.
 
-**Live mode: not yet verified.** No real Zoho organization run or live screenshots are claimed. See [docs/INSPECTOR_DEMO.md](docs/INSPECTOR_DEMO.md) for the current mock and live inspection paths.
+**Delivery-proof gap:** Zoho documents shipment status, carrier and tracking number, but no delivered-at timestamp. A Zoho-only connector cannot provide carrier-confirmed delivery proof for chargebacks; the likely long-term fix is a carrier-tracking integration, validated with the merchant.
+
+**Live mode: not yet verified.** The user reports completing Zoho signup, and Zoho Home is signed in. The Inventory page remained blank after reload, so no Inventory organization, plan, live run, or screenshot has been verified. See [docs/INSPECTOR_DEMO.md](docs/INSPECTOR_DEMO.md) for the mock and live inspection paths.
 
 ## Quickstart
 

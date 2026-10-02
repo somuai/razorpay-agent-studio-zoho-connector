@@ -153,7 +153,9 @@ async def run_nudge_simulation(
     # Calculate metrics
     baseline_wasted_pct = round((baseline_wasted_nudges / total_carts) * 100, 2)
     connector_wasted_pct = round((connector_wasted_nudges / total_carts) * 100, 2)
-    discount_budget_saved_inr = round(baseline_discount_given_inr - connector_discount_given_inr, 2)
+    discount_spend_difference_inr = round(
+        baseline_discount_given_inr - connector_discount_given_inr, 2
+    )
 
     metrics = stock_service.client.metrics
     total_api_calls = metrics.calls_made
@@ -191,7 +193,7 @@ async def run_nudge_simulation(
             "correctly_nudged_count": connector_nudges_sent,
             "total_discount_disbursed_inr": round(connector_discount_given_inr, 2),
             "wasted_discount_inr": round(connector_wasted_discount_inr, 2),
-            "discount_budget_saved_inr": discount_budget_saved_inr,
+            "discount_spend_difference_inr": discount_spend_difference_inr,
         },
         "efficiency_and_cost": {
             "api_calls_made": total_api_calls,

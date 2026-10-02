@@ -21,11 +21,26 @@ async def run_dispute_evaluation(
 
     completeness_counts: Counter[str] = Counter()
     missing_fields_counter: Counter[str] = Counter()
+    documented_complete_count = 0
+    mock_delivery_date_count = 0
     detailed_cases: list[dict[str, Any]] = []
 
     for case in dispute_cases:
         so_id = case["salesorder_id"]
         evidence = await dispute_service.get_order_fulfillment_evidence(so_id)
+
+        documented_fields = (
+            evidence.sales_order,
+            evidence.invoice,
+            evidence.package,
+            evidence.delivery_status,
+            evidence.carrier,
+            evidence.tracking_number,
+        )
+        if all(field.status == "present" for field in documented_fields):
+            documented_complete_count += 1
+        if evidence.delivery_date.status == "present":
+            mock_delivery_date_count += 1
 
         completeness_counts[evidence.completeness.value] += 1
         for field in evidence.missing_fields:
@@ -60,13 +75,28 @@ async def run_dispute_evaluation(
     return {
         "simulation_mode": "SIMULATED",
         "total_dispute_cases": total_cases,
-        "completeness_summary": {
+        "mock_all_fields_completeness": {
             "complete_evidence_count": complete_count,
             "complete_evidence_pct": complete_pct,
             "partial_evidence_count": partial_count,
             "partial_evidence_pct": partial_pct,
             "no_evidence_count": none_count,
             "no_evidence_pct": none_pct,
+        },
+        "zoho_documented_evidence": {
+            "definition": "Order, invoice, package, shipment status, carrier, and tracking number are present.",
+            "complete_count": documented_complete_count,
+            "complete_pct": round((documented_complete_count / total_cases) * 100, 2),
+        },
+        "delivery_proof": {
+            "definition": "A carrier-confirmed delivered-at timestamp or equivalent.",
+            "mock_delivery_date_field_present_count": mock_delivery_date_count,
+            "mock_delivery_date_field_present_pct": round(
+                (mock_delivery_date_count / total_cases) * 100, 2
+            ),
+            "schema_faithful_available_count": 0,
+            "schema_faithful_available_pct": 0.0,
+            "note": "The mock has a fictional delivery_date field; the reviewed Zoho shipment schema does not document delivered-at proof. Carrier integration is required.",
         },
         "missing_fields_breakdown": dict(missing_fields_counter),
         "ops_impact": {

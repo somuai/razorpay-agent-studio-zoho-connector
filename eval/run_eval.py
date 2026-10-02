@@ -69,6 +69,31 @@ async def main() -> None:
     nudge_results = await run_nudge_simulation(cart_events, stock_service)
     dispute_results = await run_dispute_evaluation(dispute_cases, dispute_service)
 
+    cold_calls_per_decision = round(
+        sum(len({item["sku"] for item in cart["items"]}) for cart in cart_events)
+        / len(cart_events),
+        3,
+    )
+    quota_scenarios = []
+    for scenario_name, calls_per_decision in (
+        ("warm_fixture_observed", nudge_results["efficiency_and_cost"]["api_calls_per_decision"]),
+        ("cold_cache_fixture_sku_mix", cold_calls_per_decision),
+    ):
+        quota_scenarios.append(
+            {
+                "cache_scenario": scenario_name,
+                "calls_per_decision": calls_per_decision,
+                "rows": [
+                    {
+                        "quota_available_pct": pct,
+                        "calls_available": int(1000 * pct / 100),
+                        "decisions_per_day": int((1000 * pct / 100) / calls_per_decision),
+                    }
+                    for pct in (100, 50, 25)
+                ],
+            }
+        )
+
     summary: dict[str, Any] = {
         "status": "COMPLETED",
         "simulation_mode": "SIMULATED",
@@ -80,33 +105,25 @@ async def main() -> None:
         "quota_feasibility": {
             "simulation_mode": "SIMULATED",
             "daily_quota_assumption": 1000,
-            "calls_per_decision": nudge_results["efficiency_and_cost"]["api_calls_per_decision"],
-            "rows": [
-                {
-                    "quota_available_pct": pct,
-                    "calls_available": int(1000 * pct / 100),
-                    "decisions_per_day": int(
-                        (1000 * pct / 100)
-                        / nudge_results["efficiency_and_cost"]["api_calls_per_decision"]
-                    ),
-                }
-                for pct in (100, 50, 25)
-            ],
-            "assumption": "The connector is the only consumer of its allocated share; capacity falls with shared org usage and changes with calls per decision/cache behavior.",
+            "scenarios": quota_scenarios,
+            "assumption": "Each distinct SKU lookup costs one upstream call in the cold-cache scenario. The 1,000-call quota is an assumption; actual cache hit rate depends on catalog size and traffic skew and must be measured. Other Zoho consumers reduce the connector's available share.",
         },
         "metrics_summary": {
             "M1_wasted_nudges_baseline_pct": nudge_results["baseline_policy"]["wasted_nudges_pct"],
             "M1_wasted_nudges_connector_pct": nudge_results["connector_aware_policy"][
                 "wasted_nudges_pct"
             ],
-            "M1_discount_budget_saved_inr": nudge_results["connector_aware_policy"][
-                "discount_budget_saved_inr"
+            "M1_discount_spend_difference_inr": nudge_results["connector_aware_policy"][
+                "discount_spend_difference_inr"
             ],
-            "M2_dispute_evidence_complete_pct": dispute_results["completeness_summary"][
+            "M2_mock_all_fields_complete_pct": dispute_results["mock_all_fields_completeness"][
                 "complete_evidence_pct"
             ],
-            "M2_dispute_evidence_partial_pct": dispute_results["completeness_summary"][
-                "partial_evidence_pct"
+            "M2_zoho_documented_evidence_complete_pct": dispute_results["zoho_documented_evidence"][
+                "complete_pct"
+            ],
+            "M2_schema_faithful_delivery_proof_pct": dispute_results["delivery_proof"][
+                "schema_faithful_available_pct"
             ],
             "M3_cart_api_calls_per_decision": nudge_results["efficiency_and_cost"][
                 "api_calls_per_decision"
@@ -145,7 +162,9 @@ async def main() -> None:
     base = nudge_results["baseline_policy"]
     conn = nudge_results["connector_aware_policy"]
     eff = nudge_results["efficiency_and_cost"]
-    disp = dispute_results["completeness_summary"]
+    disp = dispute_results["mock_all_fields_completeness"]
+    documented = dispute_results["zoho_documented_evidence"]
+    delivery = dispute_results["delivery_proof"]
 
     print("\n" + "=" * 80)
     print("RAZORPAY AGENT STUDIO - ZOHO INVENTORY CONNECTOR EVALUATION REPORT")
@@ -173,7 +192,7 @@ async def main() -> None:
         f"| Scarcity Nudges (No Discount Offered) | 0 | {conn['scarcity_no_discount_nudges']} | Driven by stock urgency |"
     )
     print(
-        f"| Total Discount Disbursed (Fictional INR) | ₹{base['total_discount_disbursed_inr']:,.2f} | ₹{conn['total_discount_disbursed_inr']:,.2f} | ₹{conn['discount_budget_saved_inr']:,.2f} difference in fictional policy arithmetic |"
+        f"| Total Discount Disbursed (Fictional INR) | ₹{base['total_discount_disbursed_inr']:,.2f} | ₹{conn['total_discount_disbursed_inr']:,.2f} | ₹{conn['discount_spend_difference_inr']:,.2f} difference in fictional policy arithmetic |"
     )
     print(
         f"| Wasted Discount on Zero Stock (Fictional INR) | ₹{base['wasted_discount_inr']:,.2f} | ₹{conn['wasted_discount_inr']:,.2f} | SIMULATED fixture arithmetic |"
@@ -189,17 +208,20 @@ async def main() -> None:
             f"| {row['out_of_stock_rate_pct']}% | {row['baseline_unavailable_nudges']} → {row['connector_aware_unavailable_nudges']} | ₹{row['baseline_wasted_discount_inr']:,.2f} → ₹{row['connector_aware_wasted_discount_inr']:,.2f} |"
         )
 
-    print("\n### METRIC 2: Chargeback Dispute Evidence Completeness (N = 40 Cases)\n")
-    print("| Evidence Classification | Cases | Pct (%) | Ops Workflow Action |")
+    print("\n### METRIC 2: SIMULATED dispute evidence measures (N = 40 cases)\n")
+    print("| Evidence measure | Cases | Pct (%) | Interpretation |")
     print("|---|:---:|:---:|---|")
     print(
-        f"| Complete in mock fields (includes fictional delivery_date) | {disp['complete_evidence_count']} | **{disp['complete_evidence_pct']}%** | Fixture completeness only; does not prove live Zoho/carrier delivery evidence |"
+        f"| Zoho-documented fields complete in fictional mock (order, invoice, package, shipment status, carrier, tracking) | {documented['complete_count']} | {documented['complete_pct']}% | Delivery proof not included |"
     )
     print(
-        f"| Partial Evidence (Missing tracking / delivery confirmation) | {disp['partial_evidence_count']} | **{disp['partial_evidence_pct']}%** | Ops triage with exact missing fields flagged |"
+        f"| Delivery proof available in schema-faithful assessment | {delivery['schema_faithful_available_count']} | {delivery['schema_faithful_available_pct']}% | Reviewed Zoho schema has no delivered-at field; carrier integration required |"
     )
     print(
-        f"| No Evidence | {disp['no_evidence_count']} | {disp['no_evidence_pct']}% | Manual review; no evidence is inferred |"
+        f"| Fictional mock delivery_date field present | {delivery['mock_delivery_date_field_present_count']} | {delivery['mock_delivery_date_field_present_pct']}% | Fixture field only; not schema-faithful delivery proof |"
+    )
+    print(
+        f"| All mock checklist fields complete (includes fictional delivery_date) | {disp['complete_evidence_count']} | {disp['complete_evidence_pct']}% | Fixture completeness only |"
     )
 
     print("\nMissing Fields Breakdown in Partial Disputes:")
@@ -225,18 +247,16 @@ async def main() -> None:
         f"- Combined quota estimate for both separate simulations: "
         f"{summary['metrics_summary']['M3_total_quota_both_sims_pct']}% of 1,000 requests/day"
     )
-    print("\n### SIMULATED quota feasibility (1,000 calls/day cap assumption)\n")
-    print(
-        "| Share available to connector | Calls/day available | Decisions/day at 0.15 calls/decision |"
-    )
-    print("|---:|---:|---:|")
-    for row in summary["quota_feasibility"]["rows"]:
+    print("\n### SIMULATED quota feasibility (assumed 1,000 calls/day cap)\n")
+    print("| Cache scenario | Calls/decision | 100% quota | 50% quota | 25% quota |")
+    print("|---|---:|---:|---:|---:|")
+    for scenario in summary["quota_feasibility"]["scenarios"]:
+        decisions = [row["decisions_per_day"] for row in scenario["rows"]]
         print(
-            f"| {row['quota_available_pct']}% | {row['calls_available']} | {row['decisions_per_day']:,} |"
+            f"| {scenario['cache_scenario']} | {scenario['calls_per_decision']} | "
+            f"{decisions[0]:,} | {decisions[1]:,} | {decisions[2]:,} |"
         )
-    print(
-        "Assumes no other connector consumes this allocation; shared usage and cache behavior change capacity.\n"
-    )
+    print(summary["quota_feasibility"]["assumption"] + "\n")
     print("\n" + "=" * 80)
     print("ALL RESULTS ARE SIMULATED. End of Evaluation Report.")
     print("=" * 80 + "\n")

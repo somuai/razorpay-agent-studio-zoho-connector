@@ -76,7 +76,7 @@ Source for all entries: [Zoho Inventory Introduction, API call limits](https://w
 
 ## Free-plan / throwaway-org availability
 
-Zoho's India product page advertises free signup, and its India help page describes creating a temporary organization with a 14-day trial. This supports trying a throwaway organization, but does not confirm that signup will succeed for this author/account or that API access/scopes are enabled. **Account-specific availability remains `UNVERIFIED`** until the author completes signup. Sources: [Zoho Inventory India free software page](https://www.zoho.com/in/inventory/free-inventory-management-software/) and [temporary organization guide](https://www.zoho.com/inventory/help/e-invoicing/einvoicing-sandbox.html). The API limits page also lists a Free plan and its daily quota: [Zoho Inventory Introduction](https://www.zoho.com/inventory/api/v1/introduction/).
+**Inventory organization and plan availability remain `UNVERIFIED`.** The user reports completing Zoho account signup, and the browser now shows a signed-in Zoho Home page. Opening `inventory.zoho.in` produced a blank page even after reload; no organization name, plan, or Inventory dashboard was visible, so the existence of a provisioned Inventory org is not confirmed. No records were created. The public India Inventory page advertises a free offering, but that does not verify a free/trial org for this account or API access for the connector. Source: [Zoho Inventory India page](https://www.zoho.com/in/inventory/free-inventory-management-software/). The API limits documentation lists a Free plan quota, which does not establish account-specific access: [Zoho Inventory Introduction](https://www.zoho.com/inventory/api/v1/introduction/).
 
 ## HTTP and fault behavior references
 

@@ -8,14 +8,15 @@ This checklist records commands actually run in this workspace. A green offline 
 - [x] `make typecheck` — mypy: success, no issues in 29 source files.
 - [x] `make test` — 86 passed; total source coverage 89.46% (threshold 85%).
 - [x] `make spec` — generated and verified `mcp/tool_spec.json`; 8 registered tools.
-- [x] `make eval` twice — `summary.json` compared byte-for-byte and was identical. Report labels all outputs **SIMULATED**, explicitly calls M1 a mechanism check, includes the 2/5/10/27% sweep and quota feasibility table. Latest: fixture assumption 54/200 unavailable carts; connector-aware zero by construction; fictional sensitivity wasted-discount values ₹924.60 / ₹2,389.00 / ₹4,493.30 / ₹13,315.40; 0.15 calls/decision; quota estimate 6,666 / 3,333 / 1,666 decisions at 100/50/25% allocation. M2 counts only fictional mock fields, including a delivery date not documented in Zoho's reviewed schema.
+- [x] `make eval` twice — all three result JSON files compared byte-for-byte and identical. Results are **SIMULATED**, M1 is a mechanism check, and the sensitivity sweep is deterministic. Quota table: warm fixture 0.15 calls/decision → 6,666 / 3,333 / 1,666 decisions at 100/50/25% allocation; cold-cache fixture mix 1.235 calls/decision → 809 / 404 / 202. M2 separates Zoho-documented evidence fields (18/40 in the fixture), schema-faithful delivery proof (0/40; requires carrier integration), and mock-only `delivery_date` presence (18/40).
 - [x] `make demo` — started the fictional mock API and separate MCP stdio server; MCP client drove in-stock, low-stock, out-of-stock, evidence, and forced 429/backoff scenarios. Metrics summary: 5 tool events, 3 retries, 1 throttled tool call, 1 tool error.
 - [x] Read-only adversarial review — findings fixed: clarified upstream response vs agent-visible fields; changed delivery wording to recorded date (not carrier-confirmed); renamed mock complete-case metric; masked reference/order IDs in audit records and aligned example/docs. Re-review found no remaining actionable findings.
+- [x] Zoho signup check — user reports account signup complete; Safari shows signed-in Zoho Home. `inventory.zoho.in` remained blank after reload, so an Inventory organization and plan are not verified and no records were created.
 - [x] `make live-smoke` without credentials — skipped cleanly; required `ZOHO_*` credentials are not configured.
 - [x] `python scripts/seed_zoho.py --dry-run` — reported 10 fictional items, 8 orders, 4 packages, up to 2 shipments; no credentials or network used.
 - [x] `make check-secrets` — secrets audit clean. Obvious mock/example placeholders are excluded from the secret-like literal match.
 - [x] `make live-smoke` — skipped cleanly; output: `SKIPPED: live Zoho smoke requires ZOHO_CLIENT_ID, ZOHO_CLIENT_SECRET, ZOHO_REFRESH_TOKEN, ZOHO_ORG_ID`.
-- [x] `make clean-clone-test` — passed against commit `1a46560`: `README placeholder check passed.`, fresh clone setup installed 47 packages, eval printed SIMULATED mechanism/sensitivity/quota tables, offline stdio demo completed with 5 tool events / 3 retries / 1 throttled call, spec generated and verified, and `clean-clone-test passed successfully.`
+- [ ] `make clean-clone-test` — rerun against the updated cold-cache/evidence split before finalizing this checklist.
 - [ ] Live Zoho verification and author-captured screenshots — pending external org credentials and author confirmation. Do not substitute mock output.
 
 ## Requirement evidence map

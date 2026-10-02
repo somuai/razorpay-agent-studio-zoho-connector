@@ -9,8 +9,8 @@
   },
   "connector_aware_policy": {
     "correctly_nudged_count": 146,
-    "discount_budget_saved_inr": 29562.2,
     "discount_nudges": 86,
+    "discount_spend_difference_inr": 29562.2,
     "nudges_sent": 146,
     "scarcity_no_discount_nudges": 60,
     "suppressed_nudges": 54,
