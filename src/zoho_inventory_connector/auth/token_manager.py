@@ -52,6 +52,7 @@ class TokenManager:
         self._access_token: str | None = None
         self._expires_at_mono: float = 0.0
         self._api_domain: str | None = None
+        self._scope: str | None = None
         self._lock = asyncio.Lock()
         self.refresh_call_count: int = 0  # Telemetry for single-flight assertions
 
@@ -161,6 +162,8 @@ class TokenManager:
             # Update dynamic api_domain if returned (FR-1.5)
             if "api_domain" in response:
                 self._api_domain = response["api_domain"]
+            if "scope" in response:
+                self._scope = str(response["scope"])
 
             # Save refreshed metadata to disk if file configured
             if self.token_file:

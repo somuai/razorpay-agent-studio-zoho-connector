@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import os
+import re
 import stat
 import sys
 from collections.abc import Mapping
@@ -76,6 +77,30 @@ def _safe_error(response: httpx.Response) -> str:
     if response.status_code == 429:
         return "Zoho rate limited the preflight; wait, then retry once."
     return f"Zoho returned HTTP {response.status_code}; inspect API_NOTES.md and retry within the time-box."
+
+
+def _diagnostic(response: httpx.Response, path: str, host: str) -> str:
+    try:
+        data = response.json()
+    except ValueError:
+        data = {}
+    code = data.get("code") if isinstance(data, Mapping) else None
+    message = data.get("message") if isinstance(data, Mapping) else None
+    safe_message = re.sub(
+        r"(?:token|secret|password|authorization)\S*", "[redacted]", str(message or ""), flags=re.I
+    )
+    safe_message = re.sub(r"\b\d{6,}\b", "[id]", safe_message)[:200]
+    if response.status_code in (401, 403) or code in (6, 57, 59):
+        fix = "check scopes and regenerate the token"
+    elif response.status_code == 404:
+        fix = "check the API root and path"
+    elif response.status_code == 400 or code in (1001, 1002):
+        fix = "check ZOHO_ORG_ID"
+    elif response.status_code == 429 or code in (44, 45, 1070):
+        fix = "check quota or rate limits"
+    else:
+        fix = "inspect API_NOTES.md and check connectivity"
+    return f"endpoint {path}; HTTP {response.status_code}; Zoho code {code!r}; message {safe_message!r}; host {host}; fix: {fix}"
 
 
 async def run_preflight(
@@ -173,6 +198,12 @@ async def run_preflight(
             print(f"API calls used: {calls}")
             return 1
         _say("PASS", "access-token refresh works")
+        if getattr(token_manager, "_scope", None):
+            _say(
+                "INFO",
+                "token scopes recorded: "
+                + re.sub(r"[^A-Za-z0-9_., ]", "", token_manager._scope)[:300],
+            )
 
         api_domain = token_manager._api_domain
         dc = env.get("ZOHO_DC", "in")
@@ -203,7 +234,16 @@ async def run_preflight(
             nonlocal calls
             params = {"organization_id": env["ZOHO_ORG_ID"]} if org_required else None
             calls += 1
-            response = await api_client.get(f"{base}/{path}", params=params, headers=headers)
+            try:
+                response = await api_client.get(f"{base}/{path}", params=params, headers=headers)
+            except httpx.HTTPError as exc:
+                host = urlparse(base).hostname or "[unknown]"
+                _say(
+                    "FAIL",
+                    f"endpoint {path}; request exception {type(exc).__name__}; host {host}",
+                    "check connectivity",
+                )
+                raise
             try:
                 data = response.json()
             except ValueError:
@@ -212,7 +252,11 @@ async def run_preflight(
 
         response, org_data = await get_json("organizations", org_required=False)
         if not response.is_success or org_data.get("code", 0) not in (0, None):
-            _say("FAIL", "cannot list organizations", _safe_error(response))
+            _say(
+                "FAIL",
+                "cannot list organizations",
+                _diagnostic(response, "/organizations", urlparse(base).hostname or "[unknown]"),
+            )
             print(f"API calls used: {calls}")
             return 1
         orgs = org_data.get("organizations", [])
@@ -228,6 +272,7 @@ async def run_preflight(
         _say("PASS", "configured ID matches an Inventory organization")
 
         scope_failures: list[str] = []
+        scope_diagnostics: list[str] = []
         for scope, path in SCOPE_ENDPOINTS:
             probe, data = await get_json(path)
             if data.get("code") == 45:
@@ -245,12 +290,19 @@ async def run_preflight(
                 continue
             if not probe.is_success or data.get("code", 0) not in (0, None):
                 scope_failures.append(scope)
+                scope_diagnostics.append(
+                    _diagnostic(
+                        probe, "/" + path.split("?", 1)[0], urlparse(base).hostname or "[unknown]"
+                    )
+                )
         if scope_failures:
             _say(
                 "FAIL",
                 "read-scope endpoint checks failed for: " + ", ".join(scope_failures),
                 "reconnect with the listed documented read scopes; if salesorders is HTTP 400, inspect the list-all limitation and verified-ID fallback",
             )
+            for detail in scope_diagnostics:
+                print("DIAGNOSTIC: " + detail)
             print(f"API calls used: {calls}")
             return 1
         _say(
