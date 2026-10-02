@@ -1,0 +1,74 @@
+MOCK / SIMULATED
+Command: make eval
+Date: 2026-10-02
+Commit: 4083ea0
+
+.venv/bin/python -m eval.run_eval
+
+================================================================================
+RAZORPAY AGENT STUDIO - ZOHO INVENTORY CONNECTOR EVALUATION REPORT
+Mode: SIMULATED | Merchant: Kaveri Home Goods (Fictional) | Seed: 42
+================================================================================
+
+### METRIC 1: SIMULATED mechanism check (N = 200 fictional carts)
+
+The baseline fixture labels 27% of carts out of stock. The connector-aware zero is guaranteed by the policy rule that suppresses every cart labeled out of stock; neither is measured merchant impact.
+
+| Metric / Policy Attribute | Baseline Policy (Unaware) | Connector-Aware Agent | Delta / Impact |
+|---|:---:|:---:|:---:|
+| Nudges Sent | 200 | 146 | -54 out-of-stock suppressed |
+| Nudges to carts with no out-of-stock item | 146 | 146 | Seeded availability only; low-stock treatment differs by policy |
+| Wasted Nudges (Sent for Unavailable SKUs) | 54 (27.0%) | 0 (0.0%) | Policy mechanism check only |
+| Scarcity Nudges (No Discount Offered) | 0 | 60 | Driven by stock urgency |
+| Total Discount Disbursed (Fictional INR) | ₹57,282.10 | ₹27,719.90 | ₹29,562.20 difference in fictional policy arithmetic |
+| Wasted Discount on Zero Stock (Fictional INR) | ₹16,765.90 | ₹0.00 | SIMULATED fixture arithmetic |
+
+### SIMULATED sensitivity sweep (same fictional discount offers; seed 42)
+
+| Out-of-stock share assumption | Unavailable nudges: baseline → aware | Wasted discount (fictional INR): baseline → aware |
+|---:|---:|---:|
+| 2% | 4 → 0 | ₹924.60 → ₹0.00 |
+| 5% | 10 → 0 | ₹2,389.00 → ₹0.00 |
+| 10% | 20 → 0 | ₹4,493.30 → ₹0.00 |
+| 27% | 54 → 0 | ₹13,315.40 → ₹0.00 |
+
+### METRIC 2: SIMULATED dispute evidence measures (N = 40 cases)
+
+| Evidence measure | Cases | Pct (%) | Interpretation |
+|---|:---:|:---:|---|
+| Zoho-documented fields complete in fictional mock (order, invoice, package, shipment status, carrier, tracking) | 18 | 45.0% | Delivery proof not included |
+| Delivery proof available in schema-faithful assessment | 0 | 0.0% | Reviewed Zoho schema has no delivered-at field; carrier integration required |
+| Fictional mock delivery_date field present | 18 | 45.0% | Fixture field only; not schema-faithful delivery proof |
+| All mock checklist fields complete (includes fictional delivery_date) | 18 | 45.0% | Fixture completeness only |
+
+Missing Fields Breakdown in Partial Disputes:
+  - `package`: missing in 18 cases
+  - `carrier`: missing in 18 cases
+  - `tracking_number`: missing in 22 cases
+  - `shipment_date`: missing in 18 cases
+  - `delivery_date`: missing in 22 cases
+  - `delivery_status`: missing in 18 cases
+  - `invoice`: missing in 8 cases
+
+### METRIC 3: Agent Cost, Latency & Quota Efficiency
+
+- Total Upstream API Calls (Nudge Sim): 30
+- Cache Hits (TTL 60s): 217 (87.85%)
+- Upstream API Calls per Nudge Decision: 0.15
+- Deterministic virtual-clock p50/p95 tool latency: 0.0/0.0 ms (not runtime latency)
+- Upstream API Calls per Dispute Case: 1.65
+- Daily Zoho Free-Tier Quota Consumed: 3.0% of 1,000 req/day limit
+- Combined quota estimate for both separate simulations: 9.6% of 1,000 requests/day
+
+### SIMULATED quota feasibility (assumed 1,000 calls/day cap)
+
+| Cache scenario | Calls/decision | 100% quota | 50% quota | 25% quota |
+|---|---:|---:|---:|---:|
+| warm_fixture_observed | 0.15 | 6,666 | 3,333 | 1,666 |
+| cold_cache_fixture_sku_mix | 1.235 | 809 | 404 | 202 |
+Each distinct SKU lookup costs one upstream call in the cold-cache scenario. The 1,000-call quota is an assumption; actual cache hit rate depends on catalog size and traffic skew and must be measured. Other Zoho consumers reduce the connector's available share.
+
+
+================================================================================
+ALL RESULTS ARE SIMULATED. End of Evaluation Report.
+================================================================================

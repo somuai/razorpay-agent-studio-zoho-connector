@@ -1,7 +1,5 @@
-# Live verification evidence
+# Author-captured live evidence
 
-**Status: not yet verified.** This directory is reserved for screenshots captured by the author after a real `make live-smoke` run against a throwaway Zoho Inventory organization and a manual MCP Inspector review.
+No live screenshots are present. Do not create or add screenshots until a real live run has completed and the output has been reviewed. The required filenames and screenshot contents are listed in the hidden evidence-slot comment in the repository README; the capture and redaction steps are in [CAPTURE_GUIDE.md](CAPTURE_GUIDE.md).
 
-Codex has not fabricated screenshots, terminal output, or live transcripts. Add evidence only after the author confirms the run, and mask organization IDs, customer details, tokens, and other secrets before committing it.
-
-Before committing a browser screenshot, crop or blur any visible email address, account ID, organization ID, phone number, or other personal identifier. For terminal captures, use the masked output from the live commands; never capture credential entry.
+Never fabricate, alter, or relabel a screenshot or terminal capture as live evidence. Crop or blur personal and organization identifiers before adding an author-captured file.

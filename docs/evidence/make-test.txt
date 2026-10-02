@@ -1,0 +1,49 @@
+MOCK / SIMULATED
+Command: make test
+Date: 2026-10-02
+Commit: 4083ea0
+
+.venv/bin/pytest --cov=src/zoho_inventory_connector --cov-report=term-missing --cov-fail-under=85 tests/
+........................................................................ [ 48%]
+........................................................................ [ 97%]
+...                                                                      [100%]
+================================ tests coverage ================================
+______________ coverage: platform darwin, python 3.11.15-final-0 _______________
+
+Name                                                           Stmts   Miss  Cover   Missing
+--------------------------------------------------------------------------------------------
+src/zoho_inventory_connector/__init__.py                           3      0   100%
+src/zoho_inventory_connector/auth/__init__.py                      0      0   100%
+src/zoho_inventory_connector/auth/oauth.py                       126     41    67%   83, 88, 182, 218, 231-289
+src/zoho_inventory_connector/auth/token_manager.py               148     11    93%   77, 82, 156-159, 172, 227, 260, 263-264
+src/zoho_inventory_connector/cache/__init__.py                     0      0   100%
+src/zoho_inventory_connector/cache/ttl_cache.py                   44      0   100%
+src/zoho_inventory_connector/client/__init__.py                    0      0   100%
+src/zoho_inventory_connector/client/client.py                    120      6    95%   69, 74, 160-161, 195, 233
+src/zoho_inventory_connector/client/errors.py                     65      1    98%   40
+src/zoho_inventory_connector/client/parsing.py                    22      3    86%   12, 14, 20
+src/zoho_inventory_connector/client/query_builder.py             108     11    90%   40, 43, 62, 81, 99, 115, 117, 128, 131, 154, 157
+src/zoho_inventory_connector/client/transport_diagnostics.py      35      8    77%   33, 35, 37, 44-49
+src/zoho_inventory_connector/events/__init__.py                    0      0   100%
+src/zoho_inventory_connector/events/audit.py                      70      1    99%   33
+src/zoho_inventory_connector/events/emitter.py                    45      0   100%
+src/zoho_inventory_connector/events/logging_safety.py             85      8    91%   46, 48, 50, 55, 57, 60, 82-83
+src/zoho_inventory_connector/mcp_server/__init__.py                0      0   100%
+src/zoho_inventory_connector/mcp_server/server.py                312     43    86%   41, 89-106, 125, 132, 162-169, 211, 217, 301, 337-349, 399, 576, 578, 580, 582, 590, 641, 695-707, 803, 901-913, 919-921, 925
+src/zoho_inventory_connector/mcp_server/spec.py                   36      1    97%   75
+src/zoho_inventory_connector/models/__init__.py                    0      0   100%
+src/zoho_inventory_connector/models/evidence.py                   35      0   100%
+src/zoho_inventory_connector/models/item.py                       45      0   100%
+src/zoho_inventory_connector/models/order.py                      65      1    98%   28
+src/zoho_inventory_connector/ratelimit/__init__.py                 0      0   100%
+src/zoho_inventory_connector/ratelimit/circuit_breaker.py         37      0   100%
+src/zoho_inventory_connector/ratelimit/clock.py                   38      8    79%   14, 19, 24, 34, 37-38, 54, 59
+src/zoho_inventory_connector/ratelimit/metrics.py                 51      0   100%
+src/zoho_inventory_connector/ratelimit/token_bucket.py            45      6    87%   54-59
+src/zoho_inventory_connector/services/__init__.py                  0      0   100%
+src/zoho_inventory_connector/services/dispute_service.py          93      6    94%   104-105, 116-117, 138-139
+src/zoho_inventory_connector/services/stock_service.py            89      7    92%   43, 60, 63, 88, 108-109, 160
+--------------------------------------------------------------------------------------------
+TOTAL                                                           1717    162    91%
+Required test coverage of 85% reached. Total coverage: 90.56%
+147 passed in 1.29s

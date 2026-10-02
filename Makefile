@@ -1,4 +1,4 @@
-.PHONY: help setup lint format typecheck test mock-server spec eval demo live-preflight live-smoke live-probe live-assert live-token-status zoho-token check-secrets clean clean-clone-test
+.PHONY: help setup lint format typecheck test mock-server spec eval demo live-preflight live-smoke live-probe live-assert live-token-status zoho-token check-secrets clean clean-clone-test screenshots-check
 
 PYTHON ?= .venv/bin/python
 UVICORN ?= .venv/bin/uvicorn
@@ -26,6 +26,7 @@ help:
 	@echo "  make zoho-token     - Run local Zoho OAuth setup and save a private refresh token"
 	@echo "  make check-secrets  - Audit repo for committed secrets/tokens"
 	@echo "  make clean-clone-test - Clone to temp dir and verify README quickstart offline"
+	@echo "  make screenshots-check - List expected screenshot files present or missing"
 
 setup:
 	@which uv > /dev/null 2>&1 || (echo "uv is required. Please install uv." && exit 1)
@@ -81,16 +82,27 @@ zoho-token:
 clean-clone-test:
 	@echo "Running clean-clone test..."
 	@python3 -c "import re, sys; text = open('README.md').read(); matches = re.findall(r'<[a-zA-Z0-9_\-]+>', text); sys.exit(f'Found unreplaced placeholders in README.md: {matches}') if matches else print('README placeholder check passed.')"
-	@FDE_CLONE_DIR=$$(mktemp -d) && \
+	@FDE_CLONE_DIR=$$(mktemp -d) && FDE_WORKTREE_PATCH=$$(mktemp) && \
 	echo "Cloning to temp dir $$FDE_CLONE_DIR..." && \
+	git diff --binary HEAD > "$$FDE_WORKTREE_PATCH" && \
 	git clone --no-hardlinks . "$$FDE_CLONE_DIR/repo" && \
+	(cd "$$FDE_CLONE_DIR/repo" && git apply "$$FDE_WORKTREE_PATCH") && \
+	cp docs/assets/CAPTURE_GUIDE.md "$$FDE_CLONE_DIR/repo/docs/assets/CAPTURE_GUIDE.md" && \
+	cp docs/FIELD_NOTES.md "$$FDE_CLONE_DIR/repo/docs/FIELD_NOTES.md" && \
+	cp docs/SUBMISSION_NOTE.md "$$FDE_CLONE_DIR/repo/docs/SUBMISSION_NOTE.md" && \
+	mkdir -p "$$FDE_CLONE_DIR/repo/docs/evidence" && cp docs/evidence/*.txt "$$FDE_CLONE_DIR/repo/docs/evidence/" && \
 	cd "$$FDE_CLONE_DIR/repo" && \
 	make setup && \
 	make eval && \
 	make demo && \
 	make spec && \
-	rm -rf "$$FDE_CLONE_DIR" && \
-	echo "clean-clone-test passed successfully."
+	rm -rf "$$FDE_CLONE_DIR" && rm -f "$$FDE_WORKTREE_PATCH" && \
+		echo "clean-clone-test passed successfully."
+
+screenshots-check:
+	@for file in tests_passing.png eval_simulated.png demo_mock.png live_preflight_masked.png live_smoke_masked.png live_probe_findings.png live_assert_masked.png mcp_inspector_live.png zoho_inventory_fictional_records.png; do \
+		if test -f "docs/assets/$$file"; then echo "PRESENT docs/assets/$$file"; else echo "MISSING docs/assets/$$file"; fi; \
+	done
 
 check-secrets:
 	@echo "Auditing codebase for committed credentials, secrets, or raw auth headers..."

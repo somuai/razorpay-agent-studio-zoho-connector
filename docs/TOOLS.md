@@ -72,7 +72,7 @@ Retrieve one order's normalized projection by its returned `salesorder_id`. `inc
 
 ## `search_sales_orders`
 
-Match by exact stored reference, Razorpay order ID (searched as reference text, then exact-compared locally), or customer email (resolve an exact contact email, then list that contact's orders). Email matching may be ambiguous. The response includes `match_basis`; inspect the result before associating a dispute.
+Reference and Razorpay order ID are sent as sales-order search text, then exact-compared locally; verify this behavior with the live probe before relying on it. Customer-email lookup is **UNVERIFIED against Zoho end to end**: the implementation resolves exact contact matches from `GET /contacts` using its email filter, then requests orders by `customer_id`. It does not send `customer_email` to the sales-order endpoint, whose docs do not define that filter. Email may match multiple contacts. The response includes `match_basis`; inspect the result before associating a dispute.
 
 ```json
 {"razorpay_order_id":"order_RzpKav1001","limit":5,"include_pii":false}

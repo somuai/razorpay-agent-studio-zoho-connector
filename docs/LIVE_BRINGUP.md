@@ -2,7 +2,7 @@
 
 Live mode remains **not verified** until the author confirms the final read-only smoke run against a personal throwaway Zoho Inventory organization in the India data center. Never use the institutional organization. Keep `.env`, grant codes, refresh tokens, account identifiers, and screenshots with personal data out of Git and chat.
 
-Run live commands from the author's normal local terminal, not an agent sandbox or CI environment that may block outbound network access. A connect timeout has no HTTP status and is not a credential rejection; its diagnostics include the exception class, phase and host plus a sandbox-network hint. Mock-mode tests and offline gates can still run inside a sandbox.
+Live commands read credentials from the environment and should be run from the author's own terminal. A connect timeout has no HTTP status and is not a credential rejection; diagnostics include the exception class, phase and host. Mock-mode tests and offline gates need no Zoho credentials.
 
 ## One-time manual setup
 

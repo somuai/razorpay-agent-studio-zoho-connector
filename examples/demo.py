@@ -161,6 +161,23 @@ async def run_demo() -> None:
                         )
                     )
 
+                    partial_evidence = _tool_payload(
+                        await session.call_tool(
+                            "get_order_fulfillment_evidence",
+                            {"salesorder_id": "so_2035", "bypass_cache": True},
+                        )
+                    )
+                    print(
+                        json.dumps(
+                            {
+                                "scenario": "partial_dispute_evidence",
+                                "completeness": partial_evidence.get("completeness"),
+                                "missing_fields": partial_evidence.get("missing_fields", []),
+                            },
+                            sort_keys=True,
+                        )
+                    )
+
                     async with httpx.AsyncClient(timeout=2.0) as client:
                         await client.post(
                             f"{mock_root}/mock/faults/configure",

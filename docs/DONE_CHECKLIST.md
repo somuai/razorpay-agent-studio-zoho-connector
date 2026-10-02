@@ -48,6 +48,32 @@ This checklist records commands actually run in this workspace. A green offline 
 - Network discrimination check (unauthenticated): `curl -4` returned HTTP 200 in 0.25 s; `curl -6` returned HTTP 200 in 0.19 s. Python HTTPX default and an IPv4-bound `local_address="0.0.0.0"` transport both raised `ConnectTimeout` at 10 s. DNS returned one IPv4 answer and no IPv6 answer for each tested Zoho hostname; no proxy environment variable names were present. This rules against an IPv6-only failure in this check, but does not identify why Python's connect path differs from curl. No authenticated calls were made.
 - Transport diagnostics now clearly label Accounts transport failures as network failures, include the sandbox/CI network hint in Accounts and Inventory diagnostics, and do not classify a timeout as a credential failure. A mock preflight regression test verifies the wording and redaction. Live command guidance in `docs/LIVE_BRINGUP.md` now directs runs to the author's normal terminal. No live commands were run for this change.
 
+## 2026-10-02 documentation handoff and fresh offline evidence
+
+- [x] `make test` — 147 passed; total coverage 90.56%. Raw command output saved without editing under `docs/evidence/make-test.txt`, with MOCK / SIMULATED label, date and base commit.
+- [x] `make lint` — all checks passed; 99 files already formatted.
+- [x] `make typecheck` — mypy success, no issues in 31 source files.
+- [x] `make spec` — generated and verified `mcp/tool_spec.json`; 8 tools registered.
+- [x] `make eval` twice — stdout and all generated result JSON files compared byte-for-byte and identical. Raw output saved under `docs/evidence/make-eval.txt`; all metrics are SIMULATED.
+- [x] `make demo` — completed offline against the local fictional mock; 6 tool events, 3 retries and 1 throttled tool call. Raw output saved under `docs/evidence/make-demo.txt` and labeled MOCK / SIMULATED.
+- [x] Evidence identifier scan — `rg -n '[0-9]{8,}' docs/evidence` returned no matches. The captured output values were not edited.
+- [x] `make check-secrets` — secrets audit clean.
+- [x] `UV_OFFLINE=1 make clean-clone-test` — passed; cloned locally, installed 47 cached locked packages without network, ran eval/demo/spec, and verified README placeholders.
+- [x] `make screenshots-check` — reports all nine expected screenshot files missing. No screenshot was generated, edited, or claimed.
+- [x] `git diff --check` — passed.
+- [x] Documentation handoff — README is 221 lines; `find docs -type f | wc -l` reports 24 files. Added assignment mapping, auth flow, API limit table, public Agent Studio boundary, current quality results, hidden screenshot slots, `FIELD_NOTES.md`, evidence outputs, capture guide, written ten-minute tour and submission note.
+- [ ] Full live verification remains pending: earlier preflight (8 calls) and all-tools smoke (14 calls) are historical successes, but live probe and assertion were not run and no screenshots exist. Later connection failures and token-cache correction are documented. No live Zoho calls or network calls were made for this documentation update.
+
+## README forward-deployed handoff rewrite
+
+- Rewrote README in the requested order, keeping live status **not yet verified** and distinguishing previously reported preflight/smoke activity from incomplete probe/assert/screenshots. Numerical claims are traced to `make eval`, `eval/results/summary.json`, `docs/LIVE_FINDINGS.md`, or this checklist.
+- Added the three named author screenshot slots only inside an HTML comment, so no broken image/link renders before genuine files exist. Added `docs/assets/CAPTURE_GUIDE.md` with terminal and Inspector capture steps, masking checklist, and digit scan. No screenshots were created or edited.
+- `make clean-clone-test` applies the tracked worktree diff and copies the new screenshot capture guide into its fresh clone before running the quickstart, so it tests the revision under review.
+- `make clean-clone-test` passed on the README revision: the placeholder scan passed, 47 locked packages installed, the simulated eval and demo ran, and the 8-tool spec was generated and verified.
+- Final gates for this README revision: `make lint` passed (97 files formatted), `make typecheck` passed (31 source files), `make test` passed (147 tests, 90.56% coverage), `make spec` generated and verified 8 tools, `make eval` and `make demo` completed, `make check-secrets` was clean, and `git diff --check` passed. No Zoho calls, screenshots or commits were made for the README rewrite.
+- Reviewer follow-up: added the five-item manual UI stock comparison (explicitly not an API result), the fictional cart failure scenario, and actual mock output excerpts for unavailable stock and partial evidence. The demo now exercises a partial evidence order (`so_2035`) in addition to the complete case; its observed summary reports 6 tool events and 3 retries. Customer-email order lookup is marked unverified across README, tool docs, capabilities and generated spec; implementation resolves exact contacts and then lists by `customer_id`. No live/network calls were made.
+- Reviewer follow-up gate results: `make lint` passed (97 files formatted); `make typecheck` passed (31 source files); `make test` passed (147 tests, 90.56% coverage); `make spec` generated and verified 8 tools; `make eval` and `make demo` completed; `make check-secrets`, `make clean-clone-test`, and `git diff --check` passed. The clean clone applied the current tracked diff and included the new capture guide. No live Zoho calls or commit made.
+
 ## Requirement evidence map
 
 | Requirement | Evidence |

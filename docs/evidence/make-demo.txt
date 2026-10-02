@@ -1,0 +1,14 @@
+MOCK / SIMULATED
+Command: make demo
+Date: 2026-10-02
+Commit: 4083ea0
+
+.venv/bin/python -m examples.demo
+OFFLINE DEMO — fictional Zoho data via MCP stdio transport
+{"as_of": "2026-10-02T15:39:12.703850+00:00", "cached": false, "decision": "in_stock", "quantity": 60.0, "scenario": "in_stock", "sku": "KHG-CUSH-001"}
+{"as_of": "2026-10-02T15:39:12.710328+00:00", "cached": false, "decision": "low_stock", "quantity": 1.0, "scenario": "low_stock", "sku": "KHG-DHOK-011"}
+{"as_of": "2026-10-02T15:39:12.712700+00:00", "cached": false, "decision": "out_of_stock", "quantity": 0.0, "scenario": "out_of_stock", "sku": "KHG-SILK-019"}
+{"completeness": "complete", "missing_fields": [], "scenario": "dispute_evidence"}
+{"completeness": "partial", "missing_fields": ["tracking_number", "delivery_date"], "scenario": "partial_dispute_evidence"}
+{"error": "RateLimitError", "retryable": true, "scenario": "throttle_backoff"}
+{"scenario": "metrics_summary", "throttled_tool_calls": 1, "tool_errors": 1, "tool_events": 6, "upstream_retries": 3}

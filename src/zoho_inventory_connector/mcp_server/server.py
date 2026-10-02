@@ -714,7 +714,9 @@ async def get_sales_order(
     name="search_sales_orders",
     description=(
         "Match a customer payment or dispute to a Zoho sales order. "
-        "Accepts reference_number, customer_email, or razorpay_order_id. "
+        "Reference or Razorpay order ID is sent as search text, then exact-compared locally. "
+        "Customer-email lookup is UNVERIFIED against Zoho: it resolves exact contact matches, "
+        "then lists orders by customer_id; no customer_email filter is sent to sales orders. "
         "Returns matching orders with an explicit 'match_basis' explaining how match occurred (FR-5.3)."
     ),
 )

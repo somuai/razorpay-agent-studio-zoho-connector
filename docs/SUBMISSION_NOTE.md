@@ -1,0 +1,3 @@
+# Submission note
+
+Repository: https://github.com/somuai/razorpay-agent-studio-zoho-connector (configured remote owner/account: `somuai`). Run the fictional offline evaluation and demo with `make setup`, `make eval`, and `make demo`. OAuth, the read-only MCP tools, rate handling, projections, tests and deterministic evaluation are verified offline. A preflight and one all-tools smoke previously succeeded against a throwaway Zoho org, but live verification remains pending: the live probe and assertion have not run, and no screenshots are included. Kaveri Home Goods and all mock records are fictional. Private Agent Studio connector loading and credential storage are assumptions; no Razorpay runtime integration is claimed.

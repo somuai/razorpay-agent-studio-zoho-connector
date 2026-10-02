@@ -17,6 +17,20 @@ Live-probe calls issued: not run (0). The separately authorized preflight used 8
 | Missing-record response code | INCONCLUSIVE | Awaiting authorized live run. | `docs/API_NOTES.md` |
 | Scoped shipment detail route used by preflight | CONFIRMED | The read-scope check reached the route and received the expected not-found response for a nonexistent record. This does not establish a shipment list endpoint. | `docs/API_NOTES.md` |
 
+## Manual UI observations
+
+These values were read by hand from item detail pages in the Zoho web UI for the author's throwaway organization after five confirmed sales orders, each with quantity one on healthy-stock items. They are **manual UI observations, not API results**.
+
+| Item observation | Stock on hand | Available for sale |
+|---|---:|---:|
+| Item A | 18 | 17 |
+| Item B | 12 | 11 |
+| Item C | 9 | 8 |
+| Item D | 15 | 14 |
+| Item E — accounting / physical display | Accounting stock 30; physical stock 29 | 29 |
+
+For four items, available-for-sale was one below stock on hand. One item showed accounting stock 30, physical stock 29, and available-for-sale 29. The Zoho API fields that carry these UI quantities have not been confirmed; the live probe has not been run. Do not map these observations to `stock_on_hand`, `location_available_stock`, or `location_actual_available_stock` without API evidence.
+
 ## Live run finding: request identifiers in HTTP logs
 
 During the authorized live smoke on 2026-10-02, HTTP request logs printed full Inventory request URLs, including organization and record identifiers. This was a logging defect; no identifier values are reproduced here. The connector now sets HTTPX/HTTPCore/urllib3 to WARNING by default and applies process-wide redaction to log records, exception text, connector telemetry, audit parameters, and not-found errors. Regression coverage exercises mock HTTP and each live helper without contacting Zoho. The live scripts have not been rerun after this fix, so screenshot safety on a subsequent live run remains to be confirmed.
