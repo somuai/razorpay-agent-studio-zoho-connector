@@ -48,7 +48,7 @@ class AuthError(ConnectorError):
         self,
         message: str = "Zoho OAuth authentication failed.",
         agent_guidance: str = "Authentication with Zoho failed; ask the merchant or user to reconnect credentials.",
-        http_status: int = 401,
+        http_status: int | None = 401,
         zoho_code: int | None = None,
         transport_diagnostic: dict[str, object] | None = None,
     ) -> None:

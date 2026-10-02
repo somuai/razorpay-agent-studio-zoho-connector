@@ -4,12 +4,14 @@ import asyncio
 import re
 import secrets
 import urllib.parse
-from typing import Any, cast
+from typing import Any
+from urllib.parse import urlparse
 
 import httpx
 
 from zoho_inventory_connector.client.errors import AuthError
 from zoho_inventory_connector.client.transport_diagnostics import transport_diagnostic
+from zoho_inventory_connector.events.logging_safety import redact_text
 
 DC_ACCOUNTS_MAP: dict[str, str] = {
     "in": "https://accounts.zoho.in",
@@ -40,20 +42,51 @@ READ_ONLY_SCOPES: list[str] = [
 ]
 
 
-def _safe_oauth_detail(response: httpx.Response) -> str:
+def _safe_oauth_detail(response: httpx.Response, operation: str) -> tuple[str, dict[str, Any]]:
+    """Describe token endpoint response metadata without logging its body or values."""
     try:
-        data = response.json()
+        decoded = response.json()
+        body_is_json = True
     except ValueError:
-        data = {}
-    error = (
-        data.get("error", "upstream_rejected") if isinstance(data, dict) else "upstream_rejected"
+        decoded = None
+        body_is_json = False
+    data = decoded if isinstance(decoded, dict) else {}
+    host = urlparse(str(response.request.url)).hostname or "[unknown]"
+
+    def field(name: str) -> str:
+        value = data.get(name)
+        if value is None:
+            return "absent"
+        safe = re.sub(r"[\r\n\t]+", " ", str(value))
+        return redact_text(safe)[:200]
+
+    detail = (
+        f"operation={operation}; host={host}; HTTP {response.status_code}; "
+        f"body_json={str(body_is_json).lower()}; oauth_error={field('error')}; "
+        f"error_description={field('error_description')}"
     )
-    description = data.get("error_description", "") if isinstance(data, dict) else ""
-    description = re.sub(
-        r"(?:token|secret|password|authorization)\S*", "[redacted]", str(description), flags=re.I
-    )
-    description = re.sub(r"\b\d{6,}\b", "[id]", description)[:200]
-    return f"HTTP {response.status_code}; error {error}; description {description}"
+    return detail, data
+
+
+def _parse_token_response(response: httpx.Response, operation: str) -> dict[str, Any]:
+    detail, data = _safe_oauth_detail(response, operation)
+    label = "authorization code exchange" if operation == "exchange" else "refresh token request"
+    if response.status_code != 200 or data.get("error"):
+        raise AuthError(
+            message=f"Zoho Accounts {label} rejected: {detail}",
+            http_status=response.status_code,
+        )
+    if not isinstance(data, dict):
+        raise AuthError(
+            message=f"Zoho Accounts {label} returned a non-object response: {detail}",
+            http_status=response.status_code,
+        )
+    if not data.get("access_token"):
+        raise AuthError(
+            message=f"Zoho Accounts {label} response is missing an access token: {detail}",
+            http_status=response.status_code,
+        )
+    return data
 
 
 def get_accounts_base_url(dc: str = "in", override: str | None = None) -> str:
@@ -130,17 +163,14 @@ async def exchange_code_for_tokens(
         try:
             res = await local_client.post(token_url, data=data)
         except httpx.HTTPError as exc:
+            diagnostic = transport_diagnostic(exc, token_url, attempt=1)
+            diagnostic["operation"] = "exchange"
             raise AuthError(
-                message=f"Zoho Accounts exchange failed ({type(exc).__name__}).",
-                http_status=502,
-                transport_diagnostic=transport_diagnostic(exc, token_url, attempt=1),
+                message="Zoho Accounts authorization-code exchange transport failure.",
+                http_status=None,
+                transport_diagnostic=diagnostic,
             ) from None
-        if res.status_code != 200:
-            raise AuthError(
-                message=f"Zoho rejected authorization code: {_safe_oauth_detail(res)}",
-                http_status=res.status_code,
-            )
-        return cast(dict[str, Any], res.json())
+        return _parse_token_response(res, "exchange")
     finally:
         if client is None:
             await local_client.aclose()
@@ -169,17 +199,14 @@ async def refresh_access_token(
         try:
             res = await local_client.post(token_url, data=data)
         except httpx.HTTPError as exc:
+            diagnostic = transport_diagnostic(exc, token_url, attempt=1)
+            diagnostic["operation"] = "refresh"
             raise AuthError(
-                message=f"Zoho Accounts refresh failed ({type(exc).__name__}).",
-                http_status=502,
-                transport_diagnostic=transport_diagnostic(exc, token_url, attempt=1),
+                message="Zoho Accounts refresh transport failure.",
+                http_status=None,
+                transport_diagnostic=diagnostic,
             ) from None
-        if res.status_code != 200:
-            raise AuthError(
-                message=f"Zoho rejected refresh token: {_safe_oauth_detail(res)}",
-                http_status=res.status_code,
-            )
-        return cast(dict[str, Any], res.json())
+        return _parse_token_response(res, "refresh")
     finally:
         if client is None:
             await local_client.aclose()

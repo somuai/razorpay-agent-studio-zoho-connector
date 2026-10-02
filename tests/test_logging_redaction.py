@@ -250,7 +250,12 @@ async def test_live_smoke_mock_logs_and_output_are_redacted(
     monkeypatch.setenv("ZOHO_ORG_ID", ORG_ID)
     monkeypatch.setenv("ZOHO_REFRESH_TOKEN", "test-refresh-token")
     monkeypatch.setenv("ZOHO_API_BASE_URL", "http://test/inventory/v1")
-    monkeypatch.setattr(live_smoke, "TokenManager", lambda **_: object())
+
+    class CachedTokenManager:
+        async def get_access_token(self) -> str:
+            return ACCESS_TOKEN
+
+    monkeypatch.setattr(live_smoke, "TokenManager", lambda **_: CachedTokenManager())
     monkeypatch.setattr(live_smoke, "ZohoClient", lambda **_: client)
     try:
         result = await live_smoke._run()

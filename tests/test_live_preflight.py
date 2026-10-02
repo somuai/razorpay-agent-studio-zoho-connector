@@ -1,7 +1,9 @@
 """Offline branch coverage for the live preflight command."""
 
+import hashlib
 import json
 import os
+import time
 from pathlib import Path
 
 import httpx
@@ -116,6 +118,44 @@ async def test_preflight_success_is_bounded_and_screenshot_safe(
     assert "private-access-token" not in output
     assert "test-organization-id" not in output
     assert len(calls) == 7  # organizations plus six scope checks
+
+
+@pytest.mark.asyncio
+async def test_preflight_reuses_unexpired_client_bound_access_token(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    env = _environment(tmp_path)
+    token_path = Path(env["ZOHO_TOKEN_FILE"])
+    token_path.write_text(
+        json.dumps(
+            {
+                "refresh_token": "local-refresh-token",
+                "access_token": "cached-access-token",
+                "api_domain": "https://www.zohoapis.in",
+                "expires_at": time.time() + 3600,
+                "client_credentials_fingerprint": hashlib.sha256(
+                    b"private-client-id\0private-client-secret"
+                ).hexdigest(),
+            }
+        ),
+        encoding="utf-8",
+    )
+    token_path.chmod(0o600)
+
+    def token_handler(_: httpx.Request) -> httpx.Response:
+        raise AssertionError("preflight should reuse a still-valid access token")
+
+    api, _, calls = _http_clients()
+    token = httpx.AsyncClient(transport=httpx.MockTransport(token_handler))
+    try:
+        assert await run_preflight(env, api_http=api, token_http=token) == 0
+    finally:
+        await api.aclose()
+        await token.aclose()
+    output = capsys.readouterr().out
+    assert "access token is available (reused from cache)" in output
+    assert "API calls used: 7" in output
+    assert len(calls) == 7
 
 
 @pytest.mark.asyncio

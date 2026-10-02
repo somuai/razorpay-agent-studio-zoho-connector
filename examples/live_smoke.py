@@ -11,6 +11,7 @@ from typing import Any
 
 from zoho_inventory_connector.auth.token_manager import TokenManager
 from zoho_inventory_connector.client.client import ZohoClient
+from zoho_inventory_connector.events.logging_safety import redact_text
 from zoho_inventory_connector.mcp_server import server
 
 
@@ -19,9 +20,13 @@ def _summary(result: Mapping[str, Any]) -> dict[str, Any]:
     if "error" in result:
         summary = {
             "status": "error",
-            "error": "ConnectorError",
+            "error": str(result.get("error", "ConnectorError")),
+            "phase": "token_or_auth" if result.get("error") == "AuthError" else "inventory_tool",
             "retryable": bool(result.get("retryable", False)),
         }
+        message = result.get("message")
+        if result.get("error") == "AuthError" and isinstance(message, str) and message:
+            summary["diagnostic"] = redact_text(message)[:400]
         diagnostic = result.get("transport_diagnostic")
         if isinstance(diagnostic, Mapping):
             summary["transport_diagnostic"] = dict(diagnostic)
@@ -55,13 +60,40 @@ async def _run() -> int:
     client = ZohoClient(token_manager=token_manager, org_id=os.environ["ZOHO_ORG_ID"])
     server.set_client(client)
 
+    try:
+        await token_manager.get_access_token()
+    except Exception as exc:
+        failure: dict[str, Any] = {
+            "phase": "token_acquisition",
+            "status": "error",
+            "error": type(exc).__name__,
+        }
+        message = getattr(exc, "message", None)
+        if isinstance(message, str) and message:
+            failure["diagnostic"] = redact_text(message)[:400]
+        transport = getattr(exc, "transport_diagnostic", None)
+        if isinstance(transport, Mapping):
+            failure["transport_diagnostic"] = dict(transport)
+        print(json.dumps(failure, sort_keys=True))
+        print(
+            "Live smoke stopped during token acquisition; no Inventory tools were called.",
+            file=sys.stderr,
+        )
+        await client.aclose()
+        return 1
+
     async def run_check(tool_name: str, call: Any) -> tuple[str, Mapping[str, Any]]:
         before = client.metrics.to_dict()
         try:
             result = await call
-        except Exception:
+        except Exception as exc:
             # Do not surface arbitrary upstream or library exception text in captures.
-            result = {"error": "ConnectorError", "retryable": False}
+            result = {
+                "error": type(exc).__name__,
+                "message": getattr(exc, "message", ""),
+                "retryable": bool(getattr(exc, "retryable", False)),
+                "transport_diagnostic": getattr(exc, "transport_diagnostic", None),
+            }
         after = client.metrics.to_dict()
         safe = _summary(result)
         safe["upstream_calls"] = after["calls_made"] - before["calls_made"]
@@ -74,6 +106,13 @@ async def _run() -> int:
     checks: list[tuple[str, Mapping[str, Any]]] = []
     item_check = await run_check("list_items", server.list_items(page=1, per_page=5))
     checks.append(item_check)
+    if item_check[1].get("error") == "AuthError":
+        await client.aclose()
+        print(
+            "Live smoke stopped after token/auth failure; remaining tools were skipped.",
+            file=sys.stderr,
+        )
+        return 1
     items = item_check[1]
     item_rows = items.get("items", []) if "error" not in items else []
     first_item = item_rows[0] if item_rows else {}
@@ -83,31 +122,43 @@ async def _run() -> int:
 
     order_check = await run_check("list_sales_orders", server.list_sales_orders(page=1, per_page=5))
     checks.append(order_check)
+    if order_check[1].get("error") == "AuthError":
+        await client.aclose()
+        print(
+            "Live smoke stopped after token/auth failure; remaining tools were skipped.",
+            file=sys.stderr,
+        )
+        return 1
     orders = order_check[1]
     order_rows = orders.get("sales_orders", []) if "error" not in orders else []
     first_order = order_rows[0] if order_rows else {}
     order_id = str(first_order.get("salesorder_id", "0"))
     reference = str(first_order.get("reference_number", "LIVE-SMOKE-NO-MATCH"))
 
-    checks.append(await run_check("get_item", server.get_item(item_id)))
-    checks.append(
-        await run_check("search_items", server.search_items(query=item_name[:80], limit=5))
-    )
-    checks.append(
-        await run_check("get_stock_availability", server.get_stock_availability([item_sku]))
-    )
-    checks.append(await run_check("get_sales_order", server.get_sales_order(order_id)))
-    checks.append(
-        await run_check(
+    remaining_checks = [
+        ("get_item", lambda: server.get_item(item_id)),
+        ("search_items", lambda: server.search_items(query=item_name[:80], limit=5)),
+        ("get_stock_availability", lambda: server.get_stock_availability([item_sku])),
+        ("get_sales_order", lambda: server.get_sales_order(order_id)),
+        (
             "search_sales_orders",
-            server.search_sales_orders(reference_number=reference, limit=5),
-        )
-    )
-    checks.append(
-        await run_check(
-            "get_order_fulfillment_evidence", server.get_order_fulfillment_evidence(order_id)
-        )
-    )
+            lambda: server.search_sales_orders(reference_number=reference, limit=5),
+        ),
+        (
+            "get_order_fulfillment_evidence",
+            lambda: server.get_order_fulfillment_evidence(order_id),
+        ),
+    ]
+    for tool_name, call_factory in remaining_checks:
+        check = await run_check(tool_name, call_factory())
+        checks.append(check)
+        if check[1].get("error") == "AuthError":
+            await client.aclose()
+            print(
+                "Live smoke stopped after token/auth failure; remaining tools were skipped.",
+                file=sys.stderr,
+            )
+            return 1
 
     await client.aclose()
     errors = sum(1 for _, result in checks if "error" in result)

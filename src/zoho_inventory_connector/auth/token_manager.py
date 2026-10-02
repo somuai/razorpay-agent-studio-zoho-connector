@@ -5,9 +5,12 @@ and mode 0600 token persistence.
 """
 
 import asyncio
+import fcntl
+import hashlib
 import json
 import logging
 import os
+import tempfile
 import time
 from pathlib import Path
 
@@ -55,6 +58,8 @@ class TokenManager:
         self._expires_at_epoch: float = 0.0
         self._api_domain: str | None = None
         self._scope: str | None = None
+        credentials = f"{client_id}\0{client_secret}".encode()
+        self._credentials_fingerprint = hashlib.sha256(credentials).hexdigest()
         self._lock = asyncio.Lock()
         self.refresh_call_count: int = 0  # Telemetry for single-flight assertions
 
@@ -73,12 +78,19 @@ class TokenManager:
         try:
             content = self.token_file.read_text(encoding="utf-8")
             data = json.loads(content)
+            if not isinstance(data, dict):
+                raise ValueError("Token cache must contain an object")
+            credentials_match = (
+                data.get("client_credentials_fingerprint") == self._credentials_fingerprint
+            )
             if "refresh_token" in data and not self.refresh_token:
                 self.refresh_token = data["refresh_token"]
-            if "api_domain" in data:
+            if credentials_match and data.get("api_domain"):
                 self._api_domain = data["api_domain"]
             if (
-                data.get("access_token")
+                isinstance(data.get("access_token"), str)
+                and data.get("access_token")
+                and credentials_match
                 and float(data.get("expires_at", 0)) > time.time() + self.refresh_buffer_seconds
             ):
                 self._access_token = str(data["access_token"])
@@ -90,34 +102,61 @@ class TokenManager:
             _logger.warning("Failed to load token file: %s", type(e).__name__)
 
     def save_tokens_to_file(self) -> None:
-        """Persist refresh token to file with 0600 permissions (FR-1.4)."""
+        """Atomically persist tokens while serializing writers across processes."""
         if not self.token_file or not self.refresh_token:
             return
 
-        payload = {
-            "refresh_token": self.refresh_token,
-            "api_domain": self._api_domain,
-            "access_token": self._access_token,
-            "expires_at": time.time() + max(0.0, self._expires_at_mono - self.clock.monotonic()),
-        }
-        json_data = json.dumps(payload, indent=2)
-
-        # Atomic write with 0600 mode
-        tmp_file = self.token_file.with_suffix(".tmp")
-        # Ensure parent directory exists
         self.token_file.parent.mkdir(parents=True, exist_ok=True)
-
-        # Create file with 0600 permissions
-        flags = os.O_WRONLY | os.O_CREAT | os.O_TRUNC
-        fd = os.open(str(tmp_file), flags, 0o600)
+        lock_path = self.token_file.with_name(self.token_file.name + ".lock")
+        lock_fd = os.open(lock_path, os.O_RDWR | os.O_CREAT, 0o600)
+        os.fchmod(lock_fd, 0o600)
+        tmp_path: str | None = None
         try:
-            with os.fdopen(fd, "w", encoding="utf-8") as f:
-                f.write(json_data)
-            os.replace(str(tmp_file), str(self.token_file))
-        except Exception:
-            if tmp_file.exists():
-                tmp_file.unlink()
-            raise
+            fcntl.flock(lock_fd, fcntl.LOCK_EX)
+            existing: dict[str, object] = {}
+            try:
+                old = json.loads(self.token_file.read_text(encoding="utf-8"))
+                if isinstance(old, dict):
+                    existing = old
+            except (OSError, ValueError):
+                # A missing or malformed cache must not block a fresh valid write.
+                pass
+
+            payload = {
+                **existing,
+                "refresh_token": self.refresh_token,
+                "api_domain": self._api_domain,
+                "access_token": self._access_token,
+                "expires_at": time.time()
+                + max(0.0, self._expires_at_mono - self.clock.monotonic()),
+                "client_credentials_fingerprint": self._credentials_fingerprint,
+            }
+            payload.pop("client_id_fingerprint", None)
+            file_fd, tmp_path = tempfile.mkstemp(
+                prefix=f".{self.token_file.name}.",
+                suffix=".tmp",
+                dir=self.token_file.parent,
+            )
+            os.fchmod(file_fd, 0o600)
+            with os.fdopen(file_fd, "w", encoding="utf-8") as stream:
+                stream.write(json.dumps(payload, indent=2))
+                stream.flush()
+                os.fsync(stream.fileno())
+            os.replace(tmp_path, self.token_file)
+            tmp_path = None
+            directory_fd = os.open(self.token_file.parent, os.O_RDONLY)
+            try:
+                os.fsync(directory_fd)
+            finally:
+                os.close(directory_fd)
+        finally:
+            if tmp_path is not None:
+                try:
+                    os.unlink(tmp_path)
+                except FileNotFoundError:
+                    pass
+            fcntl.flock(lock_fd, fcntl.LOCK_UN)
+            os.close(lock_fd)
 
     def is_token_valid(self) -> bool:
         """Return True if current cached access token is valid and outside buffer window."""
@@ -151,6 +190,11 @@ class TokenManager:
                     agent_guidance="Authentication failed because no refresh token is present; re-authenticate the merchant.",
                 )
 
+            # A 401 proves the cached bearer token is unusable. Clear it before
+            # refreshing so a failed refresh cannot make later calls reuse it.
+            if force_refresh:
+                self.invalidate_access_token(persist=True)
+
             # Perform single refresh call
             self.refresh_call_count += 1
             response = await refresh_access_token(
@@ -160,6 +204,10 @@ class TokenManager:
                 accounts_base_url=self.accounts_base_url,
                 client=self._http_client,
             )
+
+            rotated_refresh_token = response.get("refresh_token")
+            if isinstance(rotated_refresh_token, str) and rotated_refresh_token:
+                self.refresh_token = rotated_refresh_token
 
             new_token = response.get("access_token")
             if not new_token:
@@ -184,3 +232,11 @@ class TokenManager:
                 self.save_tokens_to_file()
 
             return self._access_token
+
+    def invalidate_access_token(self, *, persist: bool = False) -> None:
+        """Forget a rejected cached access token, preserving refresh credentials."""
+        self._access_token = None
+        self._expires_at_mono = 0.0
+        self._expires_at_epoch = 0.0
+        if persist:
+            self.save_tokens_to_file()

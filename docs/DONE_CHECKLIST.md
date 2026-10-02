@@ -34,6 +34,15 @@ This checklist records commands actually run in this workspace. A green offline 
 - Request-path audit of `2cc5ba4`: the only `ZohoClient` change alters `NotFoundError` presentation after a response. The process-wide logging setup changes `LogRecord` text and HTTP logger levels; it does not modify URLs, params, headers, token handling, transports, proxies or retry behavior. Offline regression tests now compare exact mock-transport URL, query params, and Authorization header through the client and full `get_item` tool path with DEBUG logging and the redaction transformation enabled/disabled.
 - Current offline verification: `make test` — 133 passed, 89.86% coverage; `make lint`, `make typecheck`, `make spec`, two deterministic `make eval` runs, `make demo`, and `make check-secrets` passed. `make clean-clone-test` passed against committed HEAD; it does not include this uncommitted patch, so rerun after a reviewed commit.
 
+## 2026-10-02 token-cache and transport follow-up
+
+- Unauthenticated Python `httpx.get` to the Accounts homepage failed after 15 seconds with the safe exception chain `ConnectTimeout -> ConnectTimeout -> TimeoutError`; an earlier curl check reached Accounts with HTTP 200 and the unauthenticated Inventory route with HTTP 401. This points to a Python HTTP connect-path/network problem; no credentials or Zoho API token were sent by the Python check.
+- Local token status at inspection: file present, mode `0600`, keys `access_token`, `api_domain`, `expires_at`, `refresh_token`; cached access token was present with about 26 minutes remaining. The pre-existing cache has no credential fingerprint, so the new code will deliberately not reuse it until one successful refresh binds it to the configured client credentials.
+- Cache audit found `live-preflight` called `get_access_token(force_refresh=True)`, bypassing a valid cached access token on every run. It now reuses a valid client-bound cache and counts a token endpoint call only when a refresh is actually attempted.
+- Cache writes previously shared a fixed `.tmp` path and did not associate access tokens with current client credentials. Writes now use a local `flock`, unique mode-0600 temporary file, fsync, and atomic replacement; token loading checks a SHA-256 client-credentials fingerprint, while preserving refresh-token rotation. A failed forced refresh invalidates the rejected access token without deleting the refresh token.
+- OAuth diagnostics distinguish token-endpoint HTTP responses from transport failures, report JSON/error metadata safely, and include exception/cause classes, phase, Accounts host and operation only for transport failures. `live-smoke` attempts token acquisition once before tool calls and stops after a token/auth error. `make live-token-status` inspects local metadata only and makes no network request.
+- Verification for this follow-up is pending final gates. No Zoho API calls were made during implementation.
+
 ## Requirement evidence map
 
 | Requirement | Evidence |

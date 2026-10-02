@@ -42,7 +42,11 @@ live_expected.yaml
 zoho_token.json
 zoho_tokens.json
 .zoho_token.json
+.zoho_token.json.*
+*.json.lock
+*.json.*.tmp
 .zoho_seed_token.json
+.zoho_seed_token.json.*
 .zoho_seed_state.json
 .zoho_audit.jsonl
 *.log

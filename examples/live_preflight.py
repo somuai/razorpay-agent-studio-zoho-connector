@@ -185,15 +185,22 @@ async def run_preflight(
             )
             print(f"API calls used: {calls}")
             return 1
-        calls += 1  # Count the token endpoint attempt, including rejected grants.
+        cached_access_token = token_manager.is_token_valid()
+        if not cached_access_token:
+            calls += 1  # Count the token endpoint attempt, including rejected grants.
         try:
-            access_token = await token_manager.get_access_token(force_refresh=True)
+            access_token = await token_manager.get_access_token()
         except Exception as exc:
             safe_message = str(getattr(exc, "message", ""))
             if "invalid_grant" in safe_message:
                 fix = "refresh token is expired or revoked; generate a new read-only grant with make zoho-token"
             elif "invalid_client" in safe_message:
                 fix = "check the client ID/secret pair and API Console data center"
+            elif any(
+                marker in safe_message.lower()
+                for marker in ("access_denied", "too many requests", "http 429", "rate limit")
+            ):
+                fix = "Zoho may be throttling token generation; wait 10 minutes before retrying"
             else:
                 fix = "check client credentials and regenerate the refresh token"
             _say(
@@ -211,7 +218,12 @@ async def run_preflight(
                 print("TRANSPORT: " + str(diagnostic))
             print(f"API calls used: {calls}")
             return 1
-        _say("PASS", "access-token refresh works")
+        _say(
+            "PASS",
+            "access token is available (reused from cache)"
+            if cached_access_token
+            else "access-token refresh works",
+        )
         if getattr(token_manager, "_scope", None):
             _say(
                 "INFO",

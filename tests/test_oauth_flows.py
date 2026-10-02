@@ -1,5 +1,7 @@
 """Deterministic OAuth endpoint and authorization URL tests (FR-1)."""
 
+import ssl
+
 import httpx
 import pytest
 
@@ -89,7 +91,9 @@ async def test_oauth_rejected_responses_become_auth_error(
                 await refresh_access_token("bad", "client", "secret", client=client)
     assert exc_info.value.http_status == 400
     assert "invalid_grant" in str(exc_info.value)
-    assert "description expired" in str(exc_info.value)
+    assert "error_description=expired" in str(exc_info.value)
+    assert "body_json=true" in str(exc_info.value)
+    assert "accounts.zoho.in" in str(exc_info.value)
 
 
 @pytest.mark.asyncio
@@ -98,5 +102,61 @@ async def test_oauth_non_json_error_does_not_expose_response_body() -> None:
         return httpx.Response(502, text="gateway down")
 
     async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as client:
-        with pytest.raises(AuthError, match="HTTP 502"):
+        with pytest.raises(AuthError, match="HTTP 502") as exc_info:
             await refresh_access_token("refresh", "client", "secret", client=client)
+    assert "body_json=false" in str(exc_info.value)
+    assert "gateway down" not in str(exc_info.value)
+
+
+@pytest.mark.asyncio
+async def test_oauth_http_429_is_an_http_response_not_a_transport_failure() -> None:
+    def handler(_: httpx.Request) -> httpx.Response:
+        return httpx.Response(429, text="<html>throttled</html>")
+
+    async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as client:
+        with pytest.raises(AuthError) as exc_info:
+            await refresh_access_token("refresh", "client", "secret", client=client)
+    assert exc_info.value.http_status == 429
+    assert exc_info.value.transport_diagnostic is None
+    assert "operation=refresh" in str(exc_info.value)
+    assert "HTTP 429" in str(exc_info.value)
+    assert "body_json=false" in str(exc_info.value)
+    assert "throttled" not in str(exc_info.value)
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    ("operation", "transport_error", "expected_phase"),
+    [
+        ("refresh", httpx.ReadTimeout("private timeout"), "read"),
+        ("exchange", httpx.ConnectError("private TLS failure"), "connect"),
+    ],
+)
+async def test_oauth_transport_errors_report_only_safe_classes_and_phase(
+    operation: str, transport_error: httpx.HTTPError, expected_phase: str
+) -> None:
+    if operation == "exchange":
+        transport_error.__cause__ = ssl.SSLError("private certificate detail")
+
+    def handler(_: httpx.Request) -> httpx.Response:
+        raise transport_error
+
+    async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as client:
+        with pytest.raises(AuthError) as exc_info:
+            if operation == "refresh":
+                await refresh_access_token("refresh", "client", "secret", client=client)
+            else:
+                await exchange_code_for_tokens(
+                    "grant", "client", "secret", "http://localhost", client=client
+                )
+
+    diagnostic = exc_info.value.transport_diagnostic
+    assert diagnostic is not None
+    assert diagnostic["operation"] == operation
+    expected = expected_phase if operation == "refresh" else "TLS"
+    assert diagnostic["phase"] == expected
+    assert diagnostic["host"] == "accounts.zoho.in"
+    rendered = str(diagnostic) + str(exc_info.value)
+    assert "private timeout" not in rendered
+    assert "private TLS failure" not in rendered
+    assert "private certificate detail" not in rendered
