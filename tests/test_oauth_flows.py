@@ -89,7 +89,7 @@ async def test_oauth_rejected_responses_become_auth_error(
                 await refresh_access_token("bad", "client", "secret", client=client)
     assert exc_info.value.http_status == 400
     assert "invalid_grant" in str(exc_info.value)
-    assert "expired" not in str(exc_info.value)
+    assert "description expired" in str(exc_info.value)
 
 
 @pytest.mark.asyncio

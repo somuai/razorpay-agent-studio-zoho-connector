@@ -1,6 +1,7 @@
 """OAuth 2.0 flow and loopback redirect server (FR-1.1, FR-1.2, FR-1.5)."""
 
 import asyncio
+import re
 import secrets
 import urllib.parse
 from typing import Any, cast
@@ -36,6 +37,22 @@ READ_ONLY_SCOPES: list[str] = [
     "ZohoInventory.contacts.READ",
     "ZohoInventory.settings.READ",
 ]
+
+
+def _safe_oauth_detail(response: httpx.Response) -> str:
+    try:
+        data = response.json()
+    except ValueError:
+        data = {}
+    error = (
+        data.get("error", "upstream_rejected") if isinstance(data, dict) else "upstream_rejected"
+    )
+    description = data.get("error_description", "") if isinstance(data, dict) else ""
+    description = re.sub(
+        r"(?:token|secret|password|authorization)\S*", "[redacted]", str(description), flags=re.I
+    )
+    description = re.sub(r"\b\d{6,}\b", "[id]", description)[:200]
+    return f"HTTP {response.status_code}; error {error}; description {description}"
 
 
 def get_accounts_base_url(dc: str = "in", override: str | None = None) -> str:
@@ -111,25 +128,14 @@ async def exchange_code_for_tokens(
     try:
         try:
             res = await local_client.post(token_url, data=data)
-        except httpx.HTTPError:
+        except httpx.HTTPError as exc:
             raise AuthError(
-                message="Could not reach Zoho Accounts while exchanging the authorization code.",
+                message=f"Zoho Accounts exchange failed ({type(exc).__name__}).",
                 http_status=502,
             ) from None
         if res.status_code != 200:
-            err_data = (
-                res.json()
-                if res.headers.get("content-type", "").startswith("application/json")
-                else {}
-            )
-            err_code = err_data.get("error")
-            safe_code = (
-                err_code
-                if err_code in {"invalid_grant", "invalid_client", "access_denied"}
-                else "upstream_rejected"
-            )
             raise AuthError(
-                message=f"Zoho rejected the authorization code ({safe_code}, HTTP {res.status_code}).",
+                message=f"Zoho rejected authorization code: {_safe_oauth_detail(res)}",
                 http_status=res.status_code,
             )
         return cast(dict[str, Any], res.json())
@@ -160,25 +166,14 @@ async def refresh_access_token(
     try:
         try:
             res = await local_client.post(token_url, data=data)
-        except httpx.HTTPError:
+        except httpx.HTTPError as exc:
             raise AuthError(
-                message="Could not reach Zoho Accounts while refreshing the access token.",
+                message=f"Zoho Accounts refresh failed ({type(exc).__name__}).",
                 http_status=502,
             ) from None
         if res.status_code != 200:
-            err_data = (
-                res.json()
-                if res.headers.get("content-type", "").startswith("application/json")
-                else {}
-            )
-            err_code = err_data.get("error")
-            safe_code = (
-                err_code
-                if err_code in {"invalid_grant", "invalid_client", "access_denied"}
-                else "upstream_rejected"
-            )
             raise AuthError(
-                message=f"Zoho rejected the refresh token ({safe_code}, HTTP {res.status_code}).",
+                message=f"Zoho rejected refresh token: {_safe_oauth_detail(res)}",
                 http_status=res.status_code,
             )
         return cast(dict[str, Any], res.json())

@@ -114,6 +114,31 @@ def test_token_file_persistence_mode_0600(tmp_path: Path) -> None:
     assert tm2.refresh_token == "secret_refresh_token_to_save"
 
 
+@pytest.mark.asyncio
+async def test_access_token_is_reused_across_processes(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    token_file = tmp_path / "token.json"
+    calls = 0
+
+    async def refresh(*args, **kwargs):
+        nonlocal calls
+        calls += 1
+        return {
+            "access_token": "cached-access",
+            "expires_in": 3600,
+            "api_domain": "https://www.zohoapis.in",
+        }
+
+    monkeypatch.setattr("zoho_inventory_connector.auth.token_manager.refresh_access_token", refresh)
+    first = TokenManager("id", "secret", "refresh", token_file=token_file)
+    assert await first.get_access_token() == "cached-access"
+    second = TokenManager("id", "secret", token_file=token_file)
+    assert await second.get_access_token() == "cached-access"
+    assert calls == 1
+    assert stat.S_IMODE(os.stat(token_file).st_mode) == 0o600
+
+
 def test_tokens_never_logged_or_printed(caplog: pytest.LogCaptureFixture) -> None:
     """# FR-1.4 Acceptance Criterion: Token strings never appear in captured logs."""
     raw_secret_token = "SUPER_SECRET_TOKEN_XYZ_12345"

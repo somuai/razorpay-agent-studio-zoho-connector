@@ -52,3 +52,6 @@ The app-facing server is FastMCP over stdio. Tool telemetry goes to stderr; PII-
 ## Current project readiness
 
 The repository contains the MCP server, service layer, client, mock API, evaluation outputs, tool specification, offline demo, OAuth helper, live-smoke helper, and an isolated seeded-data helper. Live Zoho behavior remains unverified until the author runs the read-only smoke path in a disposable organization and confirms it.
+### OAuth token reuse across commands
+
+The private `0600` token file stores the current access token and absolute expiry alongside the refresh token. New CLI processes reuse that access token while it has more than five minutes remaining, reducing pressure on Zoho's token-generation limit; the in-process lock still provides single-flight refreshes when renewal is needed.

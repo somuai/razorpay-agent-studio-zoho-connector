@@ -8,6 +8,7 @@ import asyncio
 import json
 import logging
 import os
+import time
 from pathlib import Path
 
 import httpx
@@ -51,6 +52,7 @@ class TokenManager:
 
         self._access_token: str | None = None
         self._expires_at_mono: float = 0.0
+        self._expires_at_epoch: float = 0.0
         self._api_domain: str | None = None
         self._scope: str | None = None
         self._lock = asyncio.Lock()
@@ -75,6 +77,15 @@ class TokenManager:
                 self.refresh_token = data["refresh_token"]
             if "api_domain" in data:
                 self._api_domain = data["api_domain"]
+            if (
+                data.get("access_token")
+                and float(data.get("expires_at", 0)) > time.time() + self.refresh_buffer_seconds
+            ):
+                self._access_token = str(data["access_token"])
+                self._expires_at_epoch = float(data["expires_at"])
+                self._expires_at_mono = self.clock.monotonic() + (
+                    self._expires_at_epoch - time.time()
+                )
         except Exception as e:
             _logger.warning("Failed to load token file: %s", type(e).__name__)
 
@@ -86,6 +97,8 @@ class TokenManager:
         payload = {
             "refresh_token": self.refresh_token,
             "api_domain": self._api_domain,
+            "access_token": self._access_token,
+            "expires_at": time.time() + max(0.0, self._expires_at_mono - self.clock.monotonic()),
         }
         json_data = json.dumps(payload, indent=2)
 
@@ -158,6 +171,7 @@ class TokenManager:
             expires_in = float(response.get("expires_in", 3600))
             self._access_token = new_token
             self._expires_at_mono = self.clock.monotonic() + expires_in
+            self._expires_at_epoch = time.time() + expires_in
 
             # Update dynamic api_domain if returned (FR-1.5)
             if "api_domain" in response:
