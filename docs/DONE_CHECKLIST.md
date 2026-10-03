@@ -208,3 +208,22 @@ This checklist records commands actually run in this workspace. Offline evaluati
 - [x] No live Zoho calls were made for this publication-readiness pass.
 - [x] Published GitHub pre-release [`v0.1.0 — FDE submission snapshot`](https://github.com/somuai/razorpay-agent-studio-zoho-connector/releases/tag/v0.1.0) from tested commit `a97a7b9`. The release links to the README and includes no manually generated binary assets.
 - [x] GitHub Packages: no package published. This project is a Python source repository, and GitHub Packages does not provide a Python package registry; the source release and `make setup` instructions are the distribution path for this submission.
+
+## 2026-10-03: README, assets, and PII-check polish
+
+- [x] README opens with a status-at-a-glance box, followed immediately by the assignment checklist; live status now links to the findings and gate log without listing screenshot gaps.
+- [x] Updated the stock finding from `docs/LIVE_FINDINGS.md`: item-list responses exposed `stock_on_hand` and `available_for_sale` keys, but the recorded probe did not correlate either value to the Zoho UI quantities. The API-to-UI mapping is explicitly INCONCLUSIVE.
+- [x] Traced the implementation used by `get_stock_availability`: `src/zoho_inventory_connector/services/stock_service.py:137-146` reads `actual_available_stock`, falling back to `locations[0].location_actual_available_stock`; the live probe did not establish which field corresponds to the UI's available-for-sale label.
+- [x] Moved `CODEX_RUNSHEET.md` to `docs/process/CODEX_RUNSHEET.md`, repaired its plan link, and changed the README label to “Reviewer tour.”
+- [x] Removed the stale evaluation image and four HEIC originals with referenced PNG copies. No screenshot was created or edited. `make screenshots-check` now reports the separate Zoho UI PNG captures correctly; evaluation, live preflight/probe, and live PII captures remain missing.
+- [x] Added `make live-pii-check` with `--mock`: it calls `search_sales_orders` and `get_sales_order` with `include_pii=false`, masks contact fields and record IDs in terminal output, and scans output plus captured tool logs for raw test contact values, email-shaped strings, and 8+ digit sequences. Live mode requires a fictional test reference/email/phone supplied through environment variables; it was not run during this offline task.
+- [x] `make live-pii-check ARGS=--mock` — passed; mock output showed `[MASKED]` contact fields and the privacy scan passed.
+- [x] `make test` — 170 passed; 90.67% source coverage (85% threshold).
+- [x] `make lint` — Ruff checks passed; 104 files formatted.
+- [x] `make typecheck` — passed; mypy checked 31 source files.
+- [x] `make spec` — generated and verified the 8-tool MCP specification.
+- [x] `make eval` twice — output was byte-identical; stdout SHA-256 `512e7c4a4a2a30caf18fc24c55ce16345e54548b129219dae38a15911a26d986`; results remain SIMULATED.
+- [x] `make demo` — passed against the fictional local mock.
+- [x] `make check-secrets` and `git diff --check` — passed.
+- [x] `UV_OFFLINE=1 make clean-clone-test` — passed using locally cached dependencies; the clone completed eval, demo, and spec verification.
+- [x] No network or live Zoho calls were made; no screenshots were created or edited; no commit was made.

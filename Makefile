@@ -1,4 +1,4 @@
-.PHONY: help setup lint format typecheck test mock-server spec eval demo live-preflight live-smoke live-probe live-assert live-token-status zoho-token net-watch live-burst check-secrets clean clean-clone-test screenshots-check
+.PHONY: help setup lint format typecheck test mock-server spec eval demo live-preflight live-smoke live-probe live-assert live-pii-check live-token-status zoho-token net-watch live-burst check-secrets clean clean-clone-test screenshots-check
 
 PYTHON ?= .venv/bin/python
 UVICORN ?= .venv/bin/uvicorn
@@ -22,6 +22,7 @@ help:
 	@echo "  make live-smoke     - Run smoke test against live Zoho instance (read-only)"
 	@echo "  make live-probe     - Record read-only live API response shapes"
 	@echo "  make live-assert    - Compare live test records with local expected output"
+	@echo "  make live-pii-check - Verify default PII masking for one order (--mock is offline)"
 	@echo "  make live-token-status - Inspect local token cache metadata (no network)"
 	@echo "  make zoho-token     - Run local Zoho OAuth setup and save a private refresh token"
 	@echo "  make net-watch     - Wait for unauthenticated Zoho hosts to answer (ARGS=--mock for local mock)"
@@ -75,6 +76,9 @@ live-probe:
 live-assert:
 	$(PYTHON) -m examples.live_assert
 
+live-pii-check:
+	$(PYTHON) -m examples.live_pii_check $(ARGS)
+
 live-token-status:
 	$(PYTHON) -m examples.live_token_status
 
@@ -95,10 +99,14 @@ clean-clone-test:
 	git diff --binary HEAD > "$$FDE_WORKTREE_PATCH" && \
 	git clone --no-hardlinks . "$$FDE_CLONE_DIR/repo" && \
 	if test -s "$$FDE_WORKTREE_PATCH"; then (cd "$$FDE_CLONE_DIR/repo" && git apply "$$FDE_WORKTREE_PATCH"); fi && \
+	mkdir -p "$$FDE_CLONE_DIR/repo/docs/process" && \
 	cp docs/assets/CAPTURE_GUIDE.md "$$FDE_CLONE_DIR/repo/docs/assets/CAPTURE_GUIDE.md" && \
+	cp docs/process/CODEX_RUNSHEET.md "$$FDE_CLONE_DIR/repo/docs/process/CODEX_RUNSHEET.md" && \
 	cp docs/FIELD_NOTES.md "$$FDE_CLONE_DIR/repo/docs/FIELD_NOTES.md" && \
 	cp docs/SUBMISSION_NOTE.md "$$FDE_CLONE_DIR/repo/docs/SUBMISSION_NOTE.md" && \
-	mkdir -p "$$FDE_CLONE_DIR/repo/docs/evidence" && cp docs/evidence/*.txt "$$FDE_CLONE_DIR/repo/docs/evidence/" && \
+	cp examples/live_pii_check.py "$$FDE_CLONE_DIR/repo/examples/live_pii_check.py" && \
+	cp tests/test_live_pii_check.py "$$FDE_CLONE_DIR/repo/tests/test_live_pii_check.py" && \
+	mkdir -p "$$FDE_CLONE_DIR/repo/docs/evidence" "$$FDE_CLONE_DIR/repo/docs/process" && cp docs/evidence/*.txt "$$FDE_CLONE_DIR/repo/docs/evidence/" && \
 	cd "$$FDE_CLONE_DIR/repo" && \
 	make setup && \
 	make eval && \
@@ -108,16 +116,18 @@ clean-clone-test:
 		echo "clean-clone-test passed successfully."
 
 screenshots-check:
-	@for stem in tests_passing eval_simulated demo_mock live_preflight_masked live_smoke_masked live_probe_findings live_assert_masked mcp_inspector_live; do \
+	@for stem in tests_passing eval_simulated demo_mock live_preflight_masked live_smoke_masked live_probe_findings live_assert_masked mcp_inspector_live live_pii_masking; do \
 		if test -f "docs/assets/$$stem.png"; then echo "PRESENT docs/assets/$$stem.png"; \
 		elif test -f "docs/assets/$$stem.jpg"; then echo "PRESENT docs/assets/$$stem.jpg"; \
 		elif test -f "docs/assets/$$stem.heic"; then echo "PRESENT docs/assets/$$stem.heic (review privacy; HEIC may not render on GitHub)"; \
 		else echo "MISSING docs/assets/$$stem.(png|jpg|heic)"; fi; \
 	done
-	@if test -f "docs/assets/Zoho-ui-items.heic" && test -f "docs/assets/Zoho-ui-sales orders.heic"; then \
-		echo "PRESENT Zoho UI item and order captures (HEIC; privacy reviewed)"; \
-	elif test -f "docs/assets/zoho_inventory_fictional_records.png" || test -f "docs/assets/zoho_inventory_fictional_records.jpg"; then \
-		echo "PRESENT docs/assets/zoho_inventory_fictional_records.(png|jpg)"; \
+	@items=0; orders=0; \
+	for ext in png jpg heic; do \
+	  test ! -f "docs/assets/zoho_items_ui.$$ext" || items=1; \
+	  test ! -f "docs/assets/zoho_sales_orders_ui.$$ext" || orders=1; \
+	done; \
+	if test "$$items" = 1 && test "$$orders" = 1; then echo "PRESENT Zoho item and sales-order UI captures"; \
 	else echo "MISSING Zoho Inventory fictional-record capture(s)"; fi
 
 check-secrets:

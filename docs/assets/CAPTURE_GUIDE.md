@@ -14,6 +14,7 @@ Capture only genuine output from commands run for this project. Do not generate,
 | `live_probe_findings.png`, `.jpg`, or `.heic` | LIVE | Genuine probe finding statuses; no response values or identifiers. |
 | `live_assert_masked.png`, `.jpg`, or `.heic` | LIVE | Genuine live assertions and per-row outcomes. |
 | `mcp_inspector_live.png`, `.jpg`, or `.heic` | LIVE | MCP Inspector connected to the authorized throwaway org with a real tool result. |
+| `live_pii_masking.png`, `.jpg`, or `.heic` | LIVE | A real `make live-pii-check` run showing masked order contact fields and the clean digit/email scan. |
 | `zoho_inventory_fictional_records.png`, `.jpg`, or `.heic` | LIVE | Zoho Inventory UI showing only fictional test records needed to explain the test. Separate item and orders captures are acceptable if both are present and privacy-reviewed. |
 
 ## Exact commands and scan
@@ -39,6 +40,7 @@ make live-preflight 2>&1 | tee /tmp/live_preflight.txt
 make live-smoke 2>&1 | tee /tmp/live_smoke.txt
 make live-probe 2>&1 | tee /tmp/live_probe.txt
 make live-assert 2>&1 | tee /tmp/live_assert.txt
+make live-pii-check 2>&1 | tee /tmp/live_pii_masking.txt
 ```
 
 For each terminal output, run `grep -nE '[0-9]{8,}' /tmp/<capture>.txt` before screenshotting. A match blocks capture until the issue is understood; do not edit the output to make the scan pass. Then visually inspect the full image. For Inspector and Zoho UI captures, visually inspect at full size because text embedded in images may not be caught by a terminal scan.

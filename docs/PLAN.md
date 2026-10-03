@@ -43,7 +43,7 @@ If constrained, defer M11 first, then streamable HTTP, extra edge-case tests bey
 
 ## Current progress
 
-- [x] Read `AGENTS.md` and `CODEX_RUNSHEET.md`.
+- [x] Read `AGENTS.md` and [`docs/process/CODEX_RUNSHEET.md`](process/CODEX_RUNSHEET.md).
 - [x] Restore the tracked project baseline after finding 66 tracked paths deleted from the working tree.
 - [x] Create the long-running completion goal and start bounded documentation/evaluation work.
 - [x] Reconcile the implementation, scripts, docs and tests to AGENTS.md v2; update API notes and regenerate the MCP spec.

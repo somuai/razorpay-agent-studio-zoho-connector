@@ -44,6 +44,12 @@ Run these in order from the repository root:
 7. `make live-assert`
    - Reads the private local `live_expected.yaml` copied from `live_expected.example.yaml`, calls the connector tools, and prints a pass/fail diff for each expected item/order. The live response shape includes `shipment_delivered_date`, but it was blank on the tested shipment records; do not claim carrier-confirmed proof from that field without validating its source and semantics.
 
+## Default PII masking check
+
+`make live-pii-check ARGS=--mock` exercises `search_sales_orders` and `get_sales_order` against the fictional in-process mock with `include_pii=false`. It prints a masked projection and scans the complete terminal output for the fixture email, phone, email-shaped text, and 8+ digit sequences. This command is offline and is covered by `tests/test_live_pii_check.py`.
+
+For an authorized live run, first create or select one fictional customer record with a fake email and phone, and one sales order for that customer. Set `ZOHO_PII_TEST_ORDER_REFERENCE`, `ZOHO_PII_TEST_EMAIL`, and `ZOHO_PII_TEST_PHONE` in the local environment, then run `make live-pii-check` from the author's terminal. The helper calls the two order tools with `include_pii=false`, emits only masked customer fields, and exits nonzero if the raw values or any email-shaped/8+ digit text appears. Never enter real contact details. The live command was not run as part of this offline change.
+
 Inventory resource operations in preflight, smoke, probe, and assertion are GET-only. OAuth token exchange/refresh uses Zoho Accounts POST endpoints; it does not write Inventory records. Keep the debugging loop to one focused pass: copy the exact masked failure category, inspect `docs/API_NOTES.md` and `docs/LIVE_FINDINGS.md`, fix only what the observed response supports, then rerun the failing command and offline gates. Do not turn a failed or inconclusive probe into a confirmed API claim.
 
 ## Failure guide

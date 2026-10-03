@@ -2,6 +2,25 @@
 
 A read-only MCP connector that tells Razorpay Agent Studio's cart and dispute agents whether an item is sellable and what fulfillment evidence exists in Zoho Inventory.
 
+## Status at a glance
+
+> **Offline:** 170 tests passed; 90.67% source coverage (`make test`).
+> **Live Zoho (2026-10-03):** all 8 tools exercised; 15/15 assertions passed after finding and fixing cross-order package association.
+> **Not verified:** stock-field/UI mapping, invoice-present path, populated delivered date, Free-plan quota behavior, and Agent Studio runtime integration.
+
+## Assignment checklist
+
+| Brief requirement | Status | Evidence |
+|---|---|---|
+| Working OAuth or API-key flow | Implemented: Zoho OAuth 2.0 Self Client grant and refresh-token flow. | [Auth tests](tests/test_auth.py), [OAuth flow tests](tests/test_oauth_flows.py), `make test` |
+| List/get/search primitives | Implemented: item, stock, order and fulfillment tools. | [Tool docs](docs/TOOLS.md), [server](src/zoho_inventory_connector/mcp_server/server.py), `make spec` |
+| Rate-limit handling | Implemented: token bucket, bounded retry, Retry-After when supplied, quota and circuit errors. | [API limits](docs/API_NOTES.md#limits-and-error-codes), [client tests](tests/test_client.py), `make test` |
+| MCP tool specification | Implemented: generated specification with eight registered tools. | [Tool spec](mcp/tool_spec.json), [spec tests](tests/test_spec.py), `make spec` |
+| What the agent can and cannot do | Documented. | [Capabilities](docs/AGENT_CAPABILITIES.md), [merchant summary](docs/MERCHANT_SUMMARY.md) |
+| Setup and run instructions | Documented; mock quickstart is offline after setup. | `make setup`, `make eval`, `make demo`; [Inspector guide](docs/INSPECTOR_DEMO.md) |
+| Assumptions and limitations | Documented, including private Agent Studio connector loading and credential storage assumptions. | [Assumptions](docs/ASSUMPTIONS.md), [limitations](docs/LIMITATIONS.md) |
+| No secrets or real customer data | Fictional fixtures; secret scan passes. | `make check-secrets`, [mock fixtures](mock_zoho/fixtures.py) |
+
 ## The problem
 
 **Kaveri Home Goods is fictional.** Its stated asks are to recover more abandoned carts and win more chargebacks. The narrower hypothesis is that cart agents may offer discounts for unavailable stock, while dispute agents may lack shipment facts that operations staff assemble by hand.
@@ -12,7 +31,7 @@ Stock awareness can prevent an agent from treating physical stock as sellable st
 
 ## What I found
 
-> **Stock signal.** Without a connector, a cart agent has no normalized Zoho availability signal. A manual UI observation in the throwaway org showed four items with available-for-sale quantities one below on-hand (18/17, 12/11, 9/8, 15/14); another showed accounting stock 30, physical stock 29 and available-for-sale 29. This was read by hand in Zoho's UI, not returned by the API; the API-field mapping is unconfirmed. [Manual UI observations](docs/LIVE_FINDINGS.md#manual-ui-observations)
+> **Stock signal.** Without a connector, a cart agent has no normalized Zoho availability signal. `get_stock_availability` reads `actual_available_stock`, falling back to `locations[0].location_actual_available_stock` ([implementation](src/zoho_inventory_connector/services/stock_service.py#L137)). The probe observed `stock_on_hand` and `available_for_sale` keys in item-list responses, while the detail-shape finding recorded `stock_on_hand` and no locations. **INCONCLUSIVE:** the live probe did not map the UI's available-for-sale and on-hand quantities to specific API fields. The manual UI comparison showed four items with available-for-sale one below on-hand, and one with accounting stock 30, physical stock 29 and available-for-sale 29. [Probe and manual UI evidence](docs/LIVE_FINDINGS.md#manual-ui-observations)
 >
 > **Delivery proof.** Live package responses included `shipment_delivered_date`, but it was blank on the three matching shipped records checked and does not establish carrier confirmation. For reliable chargeback delivery proof, the long-term fix remains a carrier-tracking integration. [Live findings](docs/LIVE_FINDINGS.md)
 >
@@ -50,11 +69,11 @@ These are excerpts from `make demo` against the local fictional mock. Values are
 
 ## Live verification status
 
-**Offline work is verified by tests, evaluation and demo; live Zoho verification passed on 2026-10-03 against a throwaway India org on a Premium trial.** Token exchange, preflight, all eight tools, the read-only probe, and 15/15 live assertions passed. The first assertion run failed and exposed a package-association bug: Zoho's package list returned rows for other orders despite a sales-order filter. Exact local filtering and sparse shipment-detail lookup fixed it; `test_dispute_service_ignores_packages_for_other_orders` covers the regression. Live responses included `shipment_delivered_date`, blank on the three matching shipped records checked. A populated Zoho-entered date would still not establish carrier confirmation. Invoice-present remains mock-only because the org's migration date blocked invoice creation; Free-plan quota behavior and Agent Studio runtime integration were not tested. Current screenshots include mock test/demo, live smoke/assertion, Zoho UI, and a successful MCP Inspector tool call; the evaluation capture needs recapture, while preflight and probe captures are still outstanding. See [DONE_CHECKLIST.md](docs/DONE_CHECKLIST.md) and [LIVE_FINDINGS.md](docs/LIVE_FINDINGS.md).
+The read-only Zoho run passed on 2026-10-03: token exchange, preflight, all eight tools, the response-shape probe, and 15/15 assertions. The first assertion run exposed a cross-order package association bug, which was fixed and covered by a regression test. Evidence and gate history are in [LIVE_FINDINGS.md](docs/LIVE_FINDINGS.md) and [DONE_CHECKLIST.md](docs/DONE_CHECKLIST.md).
 
 ### Live evidence
 
-The successful run's step outputs and scans exist under the gitignored `.live_out/20261003T083016Z/`: environment validation, host watch, token status, preflight, smoke, probe, and assertion. Preflight used 7 upstream calls; smoke used 10; the probe made 16 HTTP attempts; assertions passed 15/15 with 31 HTTP attempts. These files are local evidence and are not committed. Genuine screenshots include the test and demo mock captures, live smoke/assertion captures, Zoho UI captures, and a successful live Inspector tool call. The evaluation capture is stale; preflight and probe captures remain missing. See the [capture guide](docs/assets/CAPTURE_GUIDE.md) for the exact checklist and privacy review requirements. No screenshot content was edited.
+The successful run's step outputs and scans exist under the gitignored `.live_out/20261003T083016Z/`. The recorded run used 7 preflight calls, 10 smoke calls, 16 probe HTTP attempts, and 31 assertion HTTP attempts for 15/15 matches. Author-captured live smoke, assertion, Inspector, and Zoho UI images are listed in [docs/assets/README.md](docs/assets/README.md); capture requirements are in the [capture guide](docs/assets/CAPTURE_GUIDE.md).
 
 ## What the agent can and cannot do
 
@@ -135,8 +154,9 @@ Each question, the hypothesis it tests, requested data and design-changing answe
 
 ## Limitations and production path
 
-- **Live verification covers the tested read-only path and records only.** The Premium-trial run passed, but invoice-present, Free-plan quota, Agent Studio runtime loading, and carrier-confirmed delivery remain unverified.
-- **Zoho's delivered-date field is not carrier proof.** A live `shipment_delivered_date` field was blank on the three shipments checked; validate its source with the merchant and integrate the carrier or another approved authoritative tracking source.
+- **Live verification boundaries.** The Premium-trial run covered the tested read-only paths. The invoice-present path, a populated delivered date, Free-plan quota behavior, and Agent Studio runtime loading remain unverified.
+- **Stock-field mapping is inconclusive.** The probe observed `stock_on_hand` and `available_for_sale` in list rows, but did not correlate them to the UI's availability and on-hand labels; verify the mapping and merchant sellability rules before relying on the projection.
+- **Zoho's delivered date is not carrier proof.** `shipment_delivered_date` was blank on the three shipments checked, and its source was not tested. Validate its semantics with the merchant and integrate a carrier or another approved authoritative tracking source.
 - **Zoho package listing ignored the sales-order filter in the tested org.** The connector now exact-filters returned rows, but bounded pagination or a verified server-side filter is needed before larger catalogs.
 - **Sellability is merchant-specific.** Validate availability fields, reservations, safety stock and warehouse allocation before an agent acts.
 - **Quota and cache are not shared across replicas.** Measure org-wide usage and add shared coordination if deployment needs it.
@@ -151,9 +171,10 @@ More detail and the evidence required for each fix are in [LIMITATIONS.md](docs/
 - [Assumptions](docs/ASSUMPTIONS.md)
 - [Design decisions](docs/DESIGN.md)
 - [Completion checklist and command evidence](docs/DONE_CHECKLIST.md)
+- [Codex run sheet](docs/process/CODEX_RUNSHEET.md)
 - [Inspector demo](docs/INSPECTOR_DEMO.md)
 - [Limitations and fixes](docs/LIMITATIONS.md)
-- [Live bring-up runbook](docs/LIVE_BRINGUP.md)
+- [Live bring-up runbook, including PII check](docs/LIVE_BRINGUP.md)
 - [Live findings](docs/LIVE_FINDINGS.md)
 - [Live test-data checklist](docs/LIVE_TEST_DATA.md)
 - [Measurement plan](docs/MEASUREMENT.md)
@@ -162,23 +183,10 @@ More detail and the evidence required for each fix are in [LIMITATIONS.md](docs/
 - [Merchant summary technical appendix](docs/MERCHANT_SUMMARY_TECHNICAL.md)
 - [Project plan](docs/PLAN.md)
 - [Tool schemas and examples](docs/TOOLS.md)
-- [Three-minute walkthrough](docs/WALKTHROUGH.md)
+- [Reviewer tour](docs/WALKTHROUGH.md)
 - [Screenshot capture guide](docs/assets/CAPTURE_GUIDE.md)
 - [Live evidence directory note](docs/assets/README.md)
 
-
-## Assignment checklist
-
-| Brief requirement | Status | Evidence |
-|---|---|---|
-| Working OAuth or API-key flow | Implemented: Zoho OAuth 2.0 Self Client grant and refresh-token flow. | [Auth tests](tests/test_auth.py), [OAuth flow tests](tests/test_oauth_flows.py), `make test` |
-| List/get/search primitives | Implemented: item, stock, order and fulfillment tools. | [Tool docs](docs/TOOLS.md), [server](src/zoho_inventory_connector/mcp_server/server.py), `make spec` |
-| Rate-limit handling | Implemented: token bucket, bounded retry, Retry-After when supplied, quota and circuit errors. | [API limits](docs/API_NOTES.md#limits-and-error-codes), [client tests](tests/test_client.py), `make test` |
-| MCP tool specification | Implemented: generated specification with eight registered tools. | [Tool spec](mcp/tool_spec.json), [spec tests](tests/test_spec.py), `make spec` |
-| What the agent can and cannot do | Documented. | [Capabilities](docs/AGENT_CAPABILITIES.md), [merchant summary](docs/MERCHANT_SUMMARY.md) |
-| Setup and run instructions | Documented; mock quickstart is offline after setup. | `make setup`, `make eval`, `make demo`; [Inspector guide](docs/INSPECTOR_DEMO.md) |
-| Assumptions and limitations | Documented, including private Agent Studio connector loading and credential storage assumptions. | [Assumptions](docs/ASSUMPTIONS.md), [limitations](docs/LIMITATIONS.md) |
-| No secrets or real customer data | Fictional fixtures; secret scan passes. | `make check-secrets`, [mock fixtures](mock_zoho/fixtures/) |
 
 ## How authentication works
 
@@ -214,7 +222,7 @@ Fresh offline gates on 2026-10-03: **168 tests passed; 90.67% source coverage; l
 
 ## Screenshots
 
-The images below are the uploaded, author-captured screenshots. The HEIC originals are retained in `docs/assets/`; PNG copies are included where needed for GitHub README rendering. No screenshot content was edited.
+The images below are author-captured screenshots. No screenshot content was edited.
 
 ![MOCK: make test passed with coverage](docs/assets/tests_passing.jpg)
 
@@ -236,11 +244,7 @@ The Zoho UI captures show the fictional inventory and sales-order records:
 
 ![LIVE: Zoho Inventory sales-order list](docs/assets/zoho_sales_orders_ui.png)
 
-The evaluation screenshot `eval_simulated_stale.jpg` predates the corrected delivery-date explanation and is retained but not displayed. Preflight and probe screenshots remain unavailable. See the [capture guide](docs/assets/CAPTURE_GUIDE.md); `make screenshots-check` lists files present and missing.
-
-<!-- MOCK slots: tests_passing.jpg (present); eval_simulated.jpg (recapture needed; stale copy is eval_simulated_stale.jpg); demo_mock.jpg (present).
-LIVE slots: live_preflight_masked.png/.jpg/.heic (missing); live_smoke_masked.png (present); live_probe_findings.png/.jpg/.heic (missing); live_assert_masked.png (present); mcp_inspector_live.png (present); Zoho UI item/order PNG captures (present).
-Never replace a missing or stale slot with generated or edited output. -->
+See the [capture guide](docs/assets/CAPTURE_GUIDE.md) for the evidence inventory and privacy checklist; `make screenshots-check` reports each capture's status.
 
 ## Evidence files
 
