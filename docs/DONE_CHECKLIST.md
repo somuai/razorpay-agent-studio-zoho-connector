@@ -206,4 +206,5 @@ This checklist records commands actually run in this workspace. Offline evaluati
 - [x] `make check-secrets`, `git diff --check`, and evidence scans — clean; scans found no long numeric strings, email addresses, or token-like patterns.
 - [x] `UV_OFFLINE=1 make clean-clone-test` — passed with the committed release snapshot plus the pending Makefile fix. The gate exposed and verified the empty-diff handling fix.
 - [x] No live Zoho calls were made for this publication-readiness pass.
-- [ ] Create a GitHub release after committing and reviewing this snapshot. No Python package artifact is published.
+- [x] Published GitHub pre-release [`v0.1.0 — FDE submission snapshot`](https://github.com/somuai/razorpay-agent-studio-zoho-connector/releases/tag/v0.1.0) from tested commit `a97a7b9`. The release links to the README and includes no manually generated binary assets.
+- [x] GitHub Packages: no package published. This project is a Python source repository, and GitHub Packages does not provide a Python package registry; the source release and `make setup` instructions are the distribution path for this submission.

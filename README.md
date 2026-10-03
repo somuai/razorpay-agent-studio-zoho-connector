@@ -86,6 +86,8 @@ Requires Python 3.11+ and `uv`.
 
 Repository: [https://github.com/somuai/razorpay-agent-studio-zoho-connector](https://github.com/somuai/razorpay-agent-studio-zoho-connector)
 
+Release: [v0.1.0 — FDE submission snapshot](https://github.com/somuai/razorpay-agent-studio-zoho-connector/releases/tag/v0.1.0) (**pre-release**, source only; no Python package is published).
+
 ```bash
 make setup
 make eval
