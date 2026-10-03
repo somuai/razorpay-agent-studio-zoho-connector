@@ -94,7 +94,7 @@ clean-clone-test:
 	echo "Cloning to temp dir $$FDE_CLONE_DIR..." && \
 	git diff --binary HEAD > "$$FDE_WORKTREE_PATCH" && \
 	git clone --no-hardlinks . "$$FDE_CLONE_DIR/repo" && \
-	(cd "$$FDE_CLONE_DIR/repo" && git apply "$$FDE_WORKTREE_PATCH") && \
+	if test -s "$$FDE_WORKTREE_PATCH"; then (cd "$$FDE_CLONE_DIR/repo" && git apply "$$FDE_WORKTREE_PATCH"); fi && \
 	cp docs/assets/CAPTURE_GUIDE.md "$$FDE_CLONE_DIR/repo/docs/assets/CAPTURE_GUIDE.md" && \
 	cp docs/FIELD_NOTES.md "$$FDE_CLONE_DIR/repo/docs/FIELD_NOTES.md" && \
 	cp docs/SUBMISSION_NOTE.md "$$FDE_CLONE_DIR/repo/docs/SUBMISSION_NOTE.md" && \

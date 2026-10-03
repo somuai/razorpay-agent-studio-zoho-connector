@@ -204,6 +204,6 @@ This checklist records commands actually run in this workspace. Offline evaluati
 - [x] `make eval` twice — stdout and all three JSON outputs byte-identical; stdout SHA-256 `512e7c4a4a2a30caf18fc24c55ce16345e54548b129219dae38a15911a26d986`.
 - [x] `make demo` — passed against the fictional local mock; six tool events, three retries, one throttled call, and one tool error.
 - [x] `make check-secrets`, `git diff --check`, and evidence scans — clean; scans found no long numeric strings, email addresses, or token-like patterns.
-- [x] `UV_OFFLINE=1 make clean-clone-test` — passed for the README revision at the then-current committed HEAD; rerun after committing this release snapshot.
+- [x] `UV_OFFLINE=1 make clean-clone-test` — passed with the committed release snapshot plus the pending Makefile fix. The gate exposed and verified the empty-diff handling fix.
 - [x] No live Zoho calls were made for this publication-readiness pass.
 - [ ] Create a GitHub release after committing and reviewing this snapshot. No Python package artifact is published.
