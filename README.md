@@ -208,7 +208,7 @@ Razorpay describes Agent Studio publicly as a platform for merchants to deploy o
 
 ## Quality
 
-Fresh offline gates on 2026-10-03: **166 tests passed; 90.67% source coverage; lint clean (102 files formatted); typecheck clean (31 source files); 8 MCP tools registered.** Sources: `make test`, `make lint`, `make typecheck`, and `make spec`; captured mock outputs are in [docs/evidence](docs/evidence/).
+Fresh offline gates on 2026-10-03: **168 tests passed; 90.67% source coverage; lint clean (102 files formatted); typecheck clean (31 source files); 8 MCP tools registered.** Sources: `make test`, `make lint`, `make typecheck`, and `make spec`; captured mock outputs are in [docs/evidence](docs/evidence/).
 
 ## Screenshots
 
