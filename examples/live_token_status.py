@@ -9,12 +9,9 @@ import stat
 import time
 from pathlib import Path
 
-from dotenv import load_dotenv
-
 
 def main() -> None:
     """Print token-cache presence, permissions, key names and expiry only."""
-    load_dotenv()
     token_path = Path(os.environ.get("ZOHO_TOKEN_FILE", ".zoho_token.json"))
     try:
         info = token_path.stat()

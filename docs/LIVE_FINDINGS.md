@@ -51,7 +51,7 @@ These remain `INCONCLUSIVE` after a successful probe unless separately verified.
 | Package number and sales-order number filter semantics | INCONCLUSIVE | The probe reads package pages/details but does not exercise the ambiguous package search filters. | `docs/API_NOTES.md` |
 | Which stock quantity is sellable for the merchant | INCONCLUSIVE | The probe observes field names/types only; reservations and location allocation require merchant workflow evidence. | `docs/API_NOTES.md` |
 | Exact quota reset time or guaranteed `Retry-After` behavior | INCONCLUSIVE | The probe will not exhaust quota or deliberately induce throttling. | `docs/API_NOTES.md` |
-| Free-plan eligibility for the separate throwaway account | INCONCLUSIVE | The prior Premium trial observation belonged to a prohibited institutional organization. | `docs/API_NOTES.md` |
+| Free-plan eligibility for the separate throwaway account | INCONCLUSIVE | The author corrected the earlier organization classification and confirmed the current target is a personal throwaway org; its plan and free-plan eligibility remain unverified. | `docs/API_NOTES.md` |
 | Item create route and minimum accepted item payload | INCONCLUSIVE | Requires an Inventory item write; outside the GET-only probe. | `docs/API_NOTES.md` |
 | Contact-person requirement for sales-order creation | INCONCLUSIVE | Requires a controlled sales-order write; outside the GET-only probe. | `docs/API_NOTES.md` |
 | Minimum accepted sales-order line-item payload | INCONCLUSIVE | Requires a controlled sales-order write; outside the GET-only probe. | `docs/API_NOTES.md` |

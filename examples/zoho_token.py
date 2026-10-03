@@ -7,6 +7,7 @@ import getpass
 import hashlib
 import json
 import os
+import time
 import urllib.parse
 from pathlib import Path
 
@@ -22,6 +23,8 @@ def _persist_tokens(
     api_domain: str | None,
     client_id: str,
     client_secret: str,
+    access_token: str,
+    expires_in: int | float,
 ) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     tmp = path.with_suffix(path.suffix + ".tmp")
@@ -31,6 +34,8 @@ def _persist_tokens(
             payload = {
                 "refresh_token": refresh_token,
                 "api_domain": api_domain,
+                "access_token": access_token,
+                "expires_at": time.time() + float(expires_in),
                 "client_credentials_fingerprint": hashlib.sha256(
                     f"{client_id}\0{client_secret}".encode()
                 ).hexdigest(),
@@ -114,6 +119,8 @@ async def _run() -> int:
         tokens.get("api_domain"),
         client_id,
         client_secret,
+        str(tokens["access_token"]),
+        float(tokens.get("expires_in", 3600)),
     )
     print(
         "Refresh token saved to the private token file with mode 0600; value hidden. DC check passed."

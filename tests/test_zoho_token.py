@@ -35,7 +35,9 @@ def test_grant_code_is_not_echoed_and_token_file_is_private(
     async def fake_exchange(**_kwargs: object) -> dict[str, object]:
         return {
             "refresh_token": "sensitive-refresh-token",
+            "access_token": "sensitive-access-token",
             "api_domain": "https://www.zohoapis.in",
+            "expires_in": 3600,
         }
 
     monkeypatch.setattr(zoho_token, "exchange_code_for_tokens", fake_exchange)
@@ -43,13 +45,19 @@ def test_grant_code_is_not_echoed_and_token_file_is_private(
     captured = capsys.readouterr().out
     assert "sensitive-grant-code" not in captured
     assert "sensitive-refresh-token" not in captured
-    assert json.loads(token_path.read_text()) == {
+    assert "sensitive-access-token" not in captured
+    token_data = json.loads(token_path.read_text())
+    assert token_data == {
         "refresh_token": "sensitive-refresh-token",
+        "access_token": "sensitive-access-token",
         "api_domain": "https://www.zohoapis.in",
         "client_credentials_fingerprint": hashlib.sha256(
             b"client-id-secret\0client-secret-value"
         ).hexdigest(),
+        "expires_at": token_data["expires_at"],
     }
+    assert 0 < token_data["expires_at"]
+    assert token_data["expires_at"] > __import__("time").time()
     assert os.stat(token_path).st_mode & 0o777 == 0o600
 
 

@@ -9,7 +9,7 @@ from pathlib import Path
 import httpx
 import pytest
 
-from examples.live_preflight import run_preflight
+from examples.live_preflight import run_preflight, validate_required_environment
 
 
 def _http_clients(
@@ -68,6 +68,24 @@ def _environment(tmp_path: Path) -> dict[str, str]:
         "ZOHO_DC": "in",
         "ZOHO_TOKEN_FILE": str(token_file),
     }
+
+
+def test_live_burst_environment_validation_never_prints_values(capsys) -> None:
+    ok, message = validate_required_environment(
+        {
+            "ZOHO_CLIENT_ID": "private-client-value",
+            "ZOHO_CLIENT_SECRET": "private-secret-value",
+            "ZOHO_ORG_ID": "private-org-value",
+        },
+        missing_is_error=True,
+    )
+    assert ok is True
+    assert "values hidden" in message
+    assert "private-" not in message
+    ok, message = validate_required_environment({}, missing_is_error=True)
+    assert ok is False
+    assert all(key in message for key in ("ZOHO_CLIENT_ID", "ZOHO_CLIENT_SECRET", "ZOHO_ORG_ID"))
+    assert "private-" not in capsys.readouterr().out
 
 
 @pytest.mark.asyncio
@@ -193,6 +211,48 @@ async def test_token_connect_timeout_is_not_reported_as_credential_failure(
     assert "network connection failed (not a credential error)" in output
     assert "sandboxed agent or CI" in output
     assert "check client credentials" not in output
+    assert "private connection detail" not in output
+
+
+@pytest.mark.asyncio
+async def test_preflight_retries_inventory_connect_failures_and_reports_all_attempts(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    requests = 0
+
+    def fail_connect(request: httpx.Request) -> httpx.Response:
+        nonlocal requests
+        requests += 1
+        raise httpx.ConnectTimeout("private connection detail", request=request)
+
+    api = httpx.AsyncClient(transport=httpx.MockTransport(fail_connect))
+    _, token, _ = _http_clients()
+    env = _environment(tmp_path)
+    env["ZOHO_CONNECT_RETRIES"] = "4"
+
+    async def no_wait(_: int) -> None:
+        return None
+
+    monkeypatch.setattr(
+        "zoho_inventory_connector.client.transport_diagnostics.connect_backoff", no_wait
+    )
+    try:
+        assert await run_preflight(env, api_http=api, token_http=token) == 1
+    finally:
+        await api.aclose()
+        await token.aclose()
+
+    output = capsys.readouterr().out
+    assert requests == 4
+    assert "'attempt_count': 4" in output
+    assert (
+        "'attempts': [{'attempt': 1, 'phase': 'connect'}, {'attempt': 2, 'phase': 'connect'}, {'attempt': 3, 'phase': 'connect'}, {'attempt': 4, 'phase': 'connect'}]"
+        in output
+    )
+    # Four Inventory connection attempts plus one earlier OAuth token exchange.
+    assert "API calls used: 5" in output
     assert "private connection detail" not in output
 
 

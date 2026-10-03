@@ -1,5 +1,6 @@
 """FastAPI application emulating Zoho Inventory API and OAuth 2.0 (FR-9)."""
 
+import os
 from typing import Any
 
 from fastapi import FastAPI, Header, Query, Request
@@ -14,6 +15,11 @@ app = FastAPI(title="Deterministic Mock Zoho Inventory API", version="1.0.0")
 FIXTURES = generate_fixtures()
 MOCK_ACCESS_TOKEN = "zoho_access_mock_token_12345"
 MOCK_REFRESH_TOKEN = "zoho_refresh_mock_token_67890"
+
+
+def _mock_api_domain() -> str:
+    """Allow an isolated test run to bind mock token metadata to its local port."""
+    return os.environ.get("ZOHO_MOCK_API_DOMAIN", "http://127.0.0.1:8000")
 
 
 @app.get("/oauth/v2/auth")
@@ -61,7 +67,7 @@ async def mock_oauth_token(request: Request) -> JSONResponse:
             content={
                 "access_token": MOCK_ACCESS_TOKEN,
                 "refresh_token": MOCK_REFRESH_TOKEN,
-                "api_domain": "http://127.0.0.1:8000",
+                "api_domain": _mock_api_domain(),
                 "token_type": "Bearer",
                 "expires_in": 3600,
             },
@@ -78,7 +84,7 @@ async def mock_oauth_token(request: Request) -> JSONResponse:
             status_code=200,
             content={
                 "access_token": MOCK_ACCESS_TOKEN,
-                "api_domain": "http://127.0.0.1:8000",
+                "api_domain": _mock_api_domain(),
                 "token_type": "Bearer",
                 "expires_in": 3600,
             },

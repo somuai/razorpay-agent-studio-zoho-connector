@@ -5,6 +5,7 @@ import ssl
 import httpx
 import pytest
 
+from zoho_inventory_connector.auth import oauth
 from zoho_inventory_connector.auth.oauth import (
     build_authorization_url,
     exchange_code_for_tokens,
@@ -70,6 +71,104 @@ async def test_exchange_and_refresh_token_success_payloads() -> None:
     assert "grant_type=refresh_token" in requests[1].content.decode()
 
 
+@pytest.mark.asyncio
+async def test_token_connect_retries_replay_identical_request(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Connect failures happen before request delivery; retries preserve the form exactly."""
+    requests: list[tuple[str, str, tuple[tuple[str, str], ...], bytes]] = []
+    attempts = 0
+
+    async def no_sleep(_: int) -> None:
+        return None
+
+    monkeypatch.setattr(
+        "zoho_inventory_connector.client.transport_diagnostics.connect_backoff", no_sleep
+    )
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        nonlocal attempts
+        attempts += 1
+        requests.append(
+            (
+                request.method,
+                str(request.url),
+                tuple(sorted(request.headers.items())),
+                request.read(),
+            )
+        )
+        if attempts < 4:
+            raise httpx.ConnectTimeout("test connect timeout", request=request)
+        return httpx.Response(200, json={"access_token": "access", "expires_in": 3600})
+
+    async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as client:
+        result = await exchange_code_for_tokens(
+            "grant-test", "client-test", "secret-test", "http://localhost/callback", client=client
+        )
+
+    assert result["access_token"] == "access"
+    assert attempts == 4
+    assert len(set(requests)) == 1
+    assert requests[0][0] == "POST"
+    assert b"code=grant-test" in requests[0][3]
+    assert b"client_secret=secret-test" in requests[0][3]
+
+
+@pytest.mark.asyncio
+async def test_token_http_response_is_never_retried(monkeypatch: pytest.MonkeyPatch) -> None:
+    attempts = 0
+
+    async def no_sleep(_: float) -> None:
+        raise AssertionError("HTTP responses must not be retried by connect retry policy")
+
+    monkeypatch.setattr(oauth.asyncio, "sleep", no_sleep)
+
+    def handler(_: httpx.Request) -> httpx.Response:
+        nonlocal attempts
+        attempts += 1
+        return httpx.Response(429, json={"error": "too_many_requests"})
+
+    async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as client:
+        with pytest.raises(AuthError) as exc_info:
+            await refresh_access_token("refresh", "client", "secret", client=client)
+    assert attempts == 1
+    assert exc_info.value.http_status == 429
+    assert exc_info.value.transport_diagnostic is None
+
+
+@pytest.mark.asyncio
+async def test_token_connect_retry_diagnostic_reports_four_attempts(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    attempts = 0
+
+    async def no_sleep(_: int) -> None:
+        return None
+
+    monkeypatch.setattr(
+        "zoho_inventory_connector.client.transport_diagnostics.connect_backoff", no_sleep
+    )
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        nonlocal attempts
+        attempts += 1
+        raise httpx.ConnectTimeout("private transport text", request=request)
+
+    async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as client:
+        with pytest.raises(AuthError) as exc_info:
+            await refresh_access_token("refresh", "client", "secret", client=client)
+
+    diagnostic = exc_info.value.transport_diagnostic
+    assert attempts == 4
+    assert diagnostic is not None
+    assert diagnostic["attempt_count"] == 4
+    assert diagnostic["max_attempts"] == 4
+    assert diagnostic["phase"] == "connect"
+    assert "after 4 attempt(s)" in str(exc_info.value)
+    assert "private transport text" not in str(exc_info.value)
+
+
+@pytest.mark.asyncio
 @pytest.mark.asyncio
 @pytest.mark.parametrize(
     ("operation", "expected_text"),

@@ -20,7 +20,13 @@ from zoho_inventory_connector.client.errors import (
     RateLimitError,
     UpstreamError,
 )
-from zoho_inventory_connector.client.transport_diagnostics import transport_diagnostic
+from zoho_inventory_connector.client.transport_diagnostics import (
+    is_connect_phase_failure,
+    request_with_connect_retries,
+    transport_diagnostic,
+    zoho_connect_attempts,
+    zoho_http_timeout,
+)
 from zoho_inventory_connector.ratelimit.circuit_breaker import CircuitBreaker
 from zoho_inventory_connector.ratelimit.clock import Clock, SystemClock
 from zoho_inventory_connector.ratelimit.metrics import RateLimitMetrics
@@ -59,9 +65,10 @@ class ZohoClient:
         self.cache: TTLCache = cache or TTLCache(clock=self.clock)
         self.metrics: RateLimitMetrics = metrics or RateLimitMetrics()
         self.max_retries = max_retries
+        self.max_connect_attempts = zoho_connect_attempts()
         self.base_url_override = base_url_override
         self._owns_http_client = http_client is None
-        self._http_client = http_client or httpx.AsyncClient(timeout=15.0)
+        self._http_client = http_client or httpx.AsyncClient(timeout=zoho_http_timeout())
 
     def _resolve_base_url(self) -> str:
         if self.base_url_override:
@@ -111,11 +118,6 @@ class ZohoClient:
         while attempt <= self.max_retries:
             attempt += 1
 
-            # 3. Acquire Rate Limiter Token (FR-3.1)
-            waited = await self.rate_limiter.acquire(1.0)
-            if waited > 0:
-                await self.metrics.record_throttled()
-
             # 4. Concurrency Limit (FR-3.2)
             async with self.concurrency_limiter:
                 access_token = await self.token_manager.get_access_token()
@@ -124,20 +126,47 @@ class ZohoClient:
                     "Accept": "application/json",
                 }
 
-                await self.metrics.record_call(is_upstream=True)
-                try:
-                    res = await self._http_client.get(full_url, params=req_params, headers=headers)
-                except (httpx.TransportError, httpx.TimeoutException) as err:
-                    if attempt > self.max_retries:
-                        raise UpstreamError(
-                            "Network error connecting to Zoho Inventory.",
-                            http_status=None,
-                            transport_diagnostic=transport_diagnostic(err, full_url, attempt),
-                        ) from err
+                async def before_connect_attempt() -> None:
+                    waited = await self.rate_limiter.acquire(1.0)
+                    if waited > 0:
+                        await self.metrics.record_throttled()
+                    await self.metrics.record_call(is_upstream=True)
+
+                async def record_connect_retry() -> None:
                     await self.metrics.record_retry()
-                    backoff = random.uniform(0.0, min(8.0, (2 ** (attempt - 1)) * 0.5))
-                    await self.clock.sleep(backoff)
-                    continue
+
+                async def send_get(
+                    request_url: str = full_url,
+                    request_params: dict[str, str] = req_params,
+                    request_headers: dict[str, str] = headers,
+                ) -> httpx.Response:
+                    return await self._http_client.get(
+                        request_url, params=request_params, headers=request_headers
+                    )
+
+                try:
+                    res = await request_with_connect_retries(
+                        send_get,
+                        full_url,
+                        attempts=self.max_connect_attempts,
+                        before_attempt=before_connect_attempt,
+                        on_retry=record_connect_retry,
+                    )
+                except (httpx.TransportError, httpx.TimeoutException) as err:
+                    diagnostic = transport_diagnostic(err, full_url, attempt)
+                    phase = str(diagnostic["phase"])
+                    count = diagnostic.get("attempt_count", 1)
+                    if not is_connect_phase_failure(err) and attempt <= self.max_retries:
+                        await self.metrics.record_retry()
+                        delay = random.uniform(0.0, min(8.0, (2 ** (attempt - 1)) * 0.5))
+                        await self.clock.sleep(delay)
+                        continue
+                    raise UpstreamError(
+                        f"Network error (transport failure) contacting Zoho Inventory after "
+                        f"{count} attempt(s), phase={phase}; not a credential error.",
+                        http_status=None,
+                        transport_diagnostic=diagnostic,
+                    ) from err
 
             # 5. Evaluate HTTP & Body Responses
             # A) 401 Unauthorized (FR-2.3)

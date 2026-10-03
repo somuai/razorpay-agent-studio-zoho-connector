@@ -1,4 +1,4 @@
-.PHONY: help setup lint format typecheck test mock-server spec eval demo live-preflight live-smoke live-probe live-assert live-token-status zoho-token check-secrets clean clean-clone-test screenshots-check
+.PHONY: help setup lint format typecheck test mock-server spec eval demo live-preflight live-smoke live-probe live-assert live-token-status zoho-token net-watch live-burst check-secrets clean clean-clone-test screenshots-check
 
 PYTHON ?= .venv/bin/python
 UVICORN ?= .venv/bin/uvicorn
@@ -24,6 +24,8 @@ help:
 	@echo "  make live-assert    - Compare live test records with local expected output"
 	@echo "  make live-token-status - Inspect local token cache metadata (no network)"
 	@echo "  make zoho-token     - Run local Zoho OAuth setup and save a private refresh token"
+	@echo "  make net-watch     - Wait for unauthenticated Zoho hosts to answer (ARGS=--mock for local mock)"
+	@echo "  make live-burst    - Run one bounded live sequence; use ARGS=--mock for offline testing"
 	@echo "  make check-secrets  - Audit repo for committed secrets/tokens"
 	@echo "  make clean-clone-test - Clone to temp dir and verify README quickstart offline"
 	@echo "  make screenshots-check - List expected screenshot files present or missing"
@@ -78,6 +80,12 @@ live-token-status:
 
 zoho-token:
 	$(PYTHON) -m examples.zoho_token
+
+net-watch:
+	bash scripts/live_burst.sh net-watch $(ARGS)
+
+live-burst:
+	bash scripts/live_burst.sh live-burst $(ARGS)
 
 clean-clone-test:
 	@echo "Running clean-clone test..."

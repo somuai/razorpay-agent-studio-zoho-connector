@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import argparse
 import asyncio
 import os
 import re
@@ -17,7 +18,12 @@ import httpx
 from zoho_inventory_connector.auth.oauth import DC_API_MAP
 from zoho_inventory_connector.auth.token_manager import TokenManager
 from zoho_inventory_connector.client.errors import AuthError
-from zoho_inventory_connector.client.transport_diagnostics import transport_diagnostic
+from zoho_inventory_connector.client.transport_diagnostics import (
+    request_with_connect_retries,
+    transport_diagnostic,
+    zoho_connect_attempts,
+    zoho_http_timeout,
+)
 from zoho_inventory_connector.events.logging_safety import redact_text
 
 REQUIRED_ENV = (
@@ -44,9 +50,43 @@ def _say(status: str, label: str, fix: str = "") -> None:
     print(f"{status}: {label}{suffix}")
 
 
+def validate_required_environment(
+    environ: Mapping[str, str], *, missing_is_error: bool
+) -> tuple[bool, str]:
+    """Validate credential presence without printing or returning any configured values."""
+    missing = [key for key in REQUIRED_ENV if key not in environ]
+    empty = [key for key in REQUIRED_ENV if key in environ and not environ.get(key, "").strip()]
+    placeholders = [
+        key
+        for key in REQUIRED_ENV
+        if environ.get(key)
+        and (
+            environ[key].strip().lower()
+            in {"your_client_id_here", "your_client_secret_here", "your_organization_id_here"}
+            or any(marker in environ[key].strip().lower() for marker in PLACEHOLDER_MARKERS)
+        )
+    ]
+    invalid = list(dict.fromkeys(empty + placeholders))
+    if invalid:
+        return False, "credential settings are empty or look like placeholders: " + ", ".join(
+            invalid
+        )
+    if missing and missing_is_error:
+        return False, "required credential settings are missing: " + ", ".join(missing)
+    if missing:
+        return True, "required settings are not exported: " + ", ".join(missing)
+    return True, "required credential variables are present (values hidden)"
+
+
 def _api_dc_matches(api_domain: str, dc: str) -> bool:
     expected_host = urlparse(DC_API_MAP.get(dc.lower(), DC_API_MAP["in"])).hostname or ""
     observed_host = urlparse(api_domain).hostname or ""
+    if os.environ.get("ZOHO_LIVE_MOCK") == "1" and observed_host in {
+        "127.0.0.1",
+        "localhost",
+        "::1",
+    }:
+        return True
     # Zoho sometimes returns a regional API host variant. Compare the DC suffix.
     suffixes = {
         "in": ".zohoapis.in",
@@ -117,31 +157,18 @@ async def run_preflight(
 ) -> int:
     """Run preflight checks. Injection points exist only to test offline branches."""
     env = environ if environ is not None else os.environ
-    missing = [key for key in REQUIRED_ENV if key not in env]
-    empty = [key for key in REQUIRED_ENV if key in env and not env.get(key, "").strip()]
-    placeholders = [
-        key
-        for key in REQUIRED_ENV
-        if env.get(key)
-        and (
-            env[key].strip().lower()
-            in {"your_client_id_here", "your_client_secret_here", "your_organization_id_here"}
-            or any(marker in env[key].strip().lower() for marker in PLACEHOLDER_MARKERS)
+    valid, validation_message = validate_required_environment(env, missing_is_error=False)
+    if not valid:
+        _say(
+            "FAIL",
+            validation_message,
+            "replace these values in the ignored .env before live checks",
         )
-    ]
-    if empty or placeholders:
-        invalid = empty + placeholders
-        if invalid:
-            _say(
-                "FAIL",
-                "credential settings are empty or look like placeholders: " + ", ".join(invalid),
-                "replace these values in the ignored .env before live checks",
-            )
-            return 1
-    if missing:
+        return 1
+    if any(key not in env for key in REQUIRED_ENV):
         print(
             "SKIPPED: required settings are not exported in this shell: "
-            + ", ".join(missing)
+            + ", ".join(key for key in REQUIRED_ENV if key not in env)
             + ". Export these names from the local .env before live checks."
         )
         return 0
@@ -163,9 +190,9 @@ async def run_preflight(
     _say("PASS", "private token file exists with 0600 permissions")
 
     owns_token_http = token_http is None
-    token_client = token_http or httpx.AsyncClient(timeout=15.0)
+    token_client = token_http or httpx.AsyncClient(timeout=zoho_http_timeout())
     owns_api_http = api_http is None
-    api_client = api_http or httpx.AsyncClient(timeout=15.0)
+    api_client = api_http or httpx.AsyncClient(timeout=zoho_http_timeout())
     calls = 0
     try:
         token_manager = TokenManager(
@@ -266,9 +293,18 @@ async def run_preflight(
         ) -> tuple[httpx.Response, dict[str, Any]]:
             nonlocal calls
             params = {"organization_id": env["ZOHO_ORG_ID"]} if org_required else None
-            calls += 1
+
+            async def count_attempt() -> None:
+                nonlocal calls
+                calls += 1
+
             try:
-                response = await api_client.get(f"{base}/{path}", params=params, headers=headers)
+                response = await request_with_connect_retries(
+                    lambda: api_client.get(f"{base}/{path}", params=params, headers=headers),
+                    f"{base}/{path}",
+                    attempts=zoho_connect_attempts(env),
+                    before_attempt=count_attempt,
+                )
             except httpx.HTTPError as exc:
                 diagnostic = transport_diagnostic(exc, f"{base}/{path}", attempt=1)
                 _say(
@@ -362,7 +398,18 @@ async def run_preflight(
 
 
 def main() -> None:
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument(
+        "--validate-env-only",
+        action="store_true",
+        help="validate required credential names and placeholders without network access",
+    )
+    args = parser.parse_args()
     try:
+        if args.validate_env_only:
+            valid, message = validate_required_environment(os.environ, missing_is_error=True)
+            _say("PASS" if valid else "FAIL", message)
+            raise SystemExit(0 if valid else 1)
         raise SystemExit(asyncio.run(run_preflight()))
     except KeyboardInterrupt:
         print("Preflight interrupted.", file=sys.stderr)

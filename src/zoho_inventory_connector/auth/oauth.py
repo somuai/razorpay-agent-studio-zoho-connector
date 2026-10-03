@@ -12,7 +12,10 @@ import httpx
 from zoho_inventory_connector.client.errors import AuthError
 from zoho_inventory_connector.client.transport_diagnostics import (
     SANDBOX_NETWORK_GUIDANCE,
+    request_with_connect_retries,
     transport_diagnostic,
+    zoho_connect_attempts,
+    zoho_http_timeout,
 )
 from zoho_inventory_connector.events.logging_safety import redact_text
 
@@ -43,6 +46,41 @@ READ_ONLY_SCOPES: list[str] = [
     "ZohoInventory.contacts.READ",
     "ZohoInventory.settings.READ",
 ]
+
+
+async def _post_token_with_connect_retries(
+    client: httpx.AsyncClient,
+    token_url: str,
+    data: dict[str, str],
+    operation: str,
+) -> httpx.Response:
+    """Retry only connect/TLS failures, which cannot have returned an HTTP response."""
+    budget = zoho_connect_attempts()
+    try:
+        return await request_with_connect_retries(
+            lambda: client.post(token_url, data=data), token_url, attempts=budget
+        )
+    except httpx.HTTPError as exc:
+        diagnostic = transport_diagnostic(exc, token_url, attempt=1)
+        diagnostic["operation"] = operation
+        phase = str(diagnostic["phase"])
+        attempts_made = diagnostic.get("attempt_count", 1)
+        count = attempts_made if isinstance(attempts_made, int) else 1
+        raise AuthError(
+            message=(
+                f"Zoho Accounts {operation} transport failure after {count} "
+                f"attempt(s), phase={phase}. "
+                + SANDBOX_NETWORK_GUIDANCE
+                + (
+                    " Grant codes expire in about 1–2 minutes; if exchange still "
+                    "fails, generate a new code."
+                    if operation == "exchange"
+                    else ""
+                )
+            ),
+            http_status=None,
+            transport_diagnostic=diagnostic,
+        ) from None
 
 
 def _safe_oauth_detail(response: httpx.Response, operation: str) -> tuple[str, dict[str, Any]]:
@@ -161,21 +199,9 @@ async def exchange_code_for_tokens(
         "code": code,
     }
 
-    local_client = client or httpx.AsyncClient(timeout=15.0)
+    local_client = client or httpx.AsyncClient(timeout=zoho_http_timeout())
     try:
-        try:
-            res = await local_client.post(token_url, data=data)
-        except httpx.HTTPError as exc:
-            diagnostic = transport_diagnostic(exc, token_url, attempt=1)
-            diagnostic["operation"] = "exchange"
-            raise AuthError(
-                message=(
-                    "Zoho Accounts authorization-code exchange transport failure. "
-                    + SANDBOX_NETWORK_GUIDANCE
-                ),
-                http_status=None,
-                transport_diagnostic=diagnostic,
-            ) from None
+        res = await _post_token_with_connect_retries(local_client, token_url, data, "exchange")
         return _parse_token_response(res, "exchange")
     finally:
         if client is None:
@@ -200,18 +226,9 @@ async def refresh_access_token(
         "refresh_token": refresh_token,
     }
 
-    local_client = client or httpx.AsyncClient(timeout=15.0)
+    local_client = client or httpx.AsyncClient(timeout=zoho_http_timeout())
     try:
-        try:
-            res = await local_client.post(token_url, data=data)
-        except httpx.HTTPError as exc:
-            diagnostic = transport_diagnostic(exc, token_url, attempt=1)
-            diagnostic["operation"] = "refresh"
-            raise AuthError(
-                message="Zoho Accounts refresh transport failure. " + SANDBOX_NETWORK_GUIDANCE,
-                http_status=None,
-                transport_diagnostic=diagnostic,
-            ) from None
+        res = await _post_token_with_connect_retries(local_client, token_url, data, "refresh")
         return _parse_token_response(res, "refresh")
     finally:
         if client is None:

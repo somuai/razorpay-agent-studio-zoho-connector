@@ -13,7 +13,7 @@ from zoho_inventory_connector.auth.token_manager import TokenManager
 from zoho_inventory_connector.client.client import ZohoClient
 from zoho_inventory_connector.mcp_server import server
 
-EXPECTED_PATH = Path("live_expected.yaml")
+EXPECTED_PATH = Path(os.environ.get("ZOHO_LIVE_EXPECTED_PATH", "live_expected.yaml"))
 
 
 def load_expected(path: Path = EXPECTED_PATH) -> dict[str, Any]:
@@ -69,6 +69,28 @@ def compare_expected(actual: dict[str, Any], expected: dict[str, Any]) -> list[s
     return diffs
 
 
+def _transport_attempt_note(*results: dict[str, Any]) -> str:
+    """Render only retry counts and phases from connector transport metadata."""
+    for result in results:
+        diagnostic = result.get("transport_diagnostic")
+        if not isinstance(diagnostic, dict):
+            continue
+        attempts = diagnostic.get("attempts")
+        phases = (
+            [
+                row.get("phase")
+                for row in attempts
+                if isinstance(row, dict) and isinstance(row.get("phase"), str)
+            ]
+            if isinstance(attempts, list)
+            else []
+        )
+        count = diagnostic.get("attempt_count")
+        if isinstance(count, int):
+            return f"; transport attempts: {count} ({', '.join(phases) or 'phase unavailable'})"
+    return ""
+
+
 async def run(expected: dict[str, Any]) -> int:
     client = _configured_client()
     server.set_client(client)
@@ -77,6 +99,7 @@ async def run(expected: dict[str, Any]) -> int:
         for row in expected["items"]:
             sku = str(row["sku"])
             result = await server.get_stock_availability([sku], bypass_cache=True)
+            transport_note = _transport_attempt_note(result)
             actual = {}
             if "error" not in result and result.get("items"):
                 actual = {"status": result["items"][0].get("status")}
@@ -84,18 +107,21 @@ async def run(expected: dict[str, Any]) -> int:
             print(
                 f"{'FAIL' if diffs else 'PASS'} item {sku[-3:]}"
                 + (": " + "; ".join(diffs) if diffs else "")
+                + transport_note
             )
             failed += bool(diffs)
 
         for row in expected["orders"]:
             ref = str(row["reference_number"])
             search = await server.search_sales_orders(reference_number=ref, limit=5)
+            transport_results = [search]
             orders = search.get("sales_orders", []) if "error" not in search else []
             if len(orders) != 1:
                 actual = {"found": False}
             else:
                 order_id = str(orders[0].get("salesorder_id", ""))
                 evidence = await server.get_order_fulfillment_evidence(order_id)
+                transport_results.append(evidence)
                 actual = {
                     "found": "error" not in evidence,
                     "completeness": evidence.get("completeness"),
@@ -106,12 +132,20 @@ async def run(expected: dict[str, Any]) -> int:
             print(
                 f"{'FAIL' if diffs else 'PASS'} order {ref[-3:]}"
                 + (": " + "; ".join(diffs) if diffs else "")
+                + _transport_attempt_note(*transport_results)
             )
             failed += bool(diffs)
     finally:
         await client.aclose()
+    metrics = getattr(client, "metrics", None)
+    upstream_attempts = (
+        int(metrics.to_dict().get("calls_made", 0))
+        if metrics is not None and hasattr(metrics, "to_dict")
+        else 0
+    )
     print(
-        f"Live assertions: {failed} failed row(s) across {len(expected['items']) + len(expected['orders'])} rows."
+        f"Live assertions: {failed} failed row(s) across {len(expected['items']) + len(expected['orders'])} rows; "
+        f"upstream HTTP attempts: {upstream_attempts}."
     )
     return 1 if failed else 0
 

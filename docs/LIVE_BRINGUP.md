@@ -4,6 +4,16 @@ Live mode remains **not verified** until the author confirms the final read-only
 
 Live commands read credentials from the environment and should be run from the author's own terminal. A connect timeout has no HTTP status and is not a credential rejection; diagnostics include the exception class, phase and host. Mock-mode tests and offline gates need no Zoho credentials.
 
+## One-command bring-up
+
+The Accounts host is needed to exchange a grant code or refresh an expired access token. Once minted, a cached access token is reused for roughly an hour; Inventory reads can then run as one bounded burst without repeatedly contacting Accounts. Token exchange/refresh and Inventory GETs retry connect/TLS failures at most four times with jitter and a five-second connect timeout. No token-endpoint response is retried. The workflow below waits for both unauthenticated hosts, checks the local token cache, asks for a fresh grant only when needed, and runs each live step once in sequence. It never retries the whole sequence.
+
+- `make net-watch` polls the unauthenticated Accounts and Inventory hosts every three seconds. Set `NET_WATCH_LIMIT_SECONDS` to change the default ten-minute window. `make net-watch ARGS=--mock` exercises the same polling logic against the local mock.
+- `set -a; source .env; set +a` exports your local ignored credentials, then `make live-burst` runs environment validation, host watch, token status, and preflight/smoke/probe/assert in order. If token status is missing, stale, expired or unbound, the script asks for a grant and invokes the existing hidden prompt in `make zoho-token`. Generate the read-only grant only after that prompt appears.
+- `make live-burst ARGS=--mock` runs the same orchestration against the local mock with fake credentials and a private temporary token file. It makes no Zoho request.
+
+Each burst writes per-step output under the ignored `.live_out/<timestamp>/` directory, scans output for long IDs, email addresses and token-like strings, and prints an exit/call/safety summary. A failed step stops the run and preserves captured output for diagnosis. Review the scan before taking screenshots; a failed scan means the output is not safe to share.
+
 ## One-time manual setup
 
 Create the throwaway organization and fictional records using [LIVE_TEST_DATA.md](LIVE_TEST_DATA.md). Create a Zoho Self Client with only the read scopes listed in [API_NOTES.md](API_NOTES.md). Put the client ID, client secret, `ZOHO_ORG_ID`, and `ZOHO_DC=in` in the local ignored `.env` file. The shell must export these values because Make does not load `.env` automatically. `ZOHO_REFRESH_TOKEN` may be blank; `make zoho-token` stores it in the private token file. Do not paste credentials or grant codes into chat.

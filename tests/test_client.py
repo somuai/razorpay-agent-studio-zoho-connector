@@ -15,7 +15,11 @@ from zoho_inventory_connector.client.errors import (
     RateLimitError,
     UpstreamError,
 )
-from zoho_inventory_connector.client.transport_diagnostics import transport_diagnostic
+from zoho_inventory_connector.client.transport_diagnostics import (
+    transport_diagnostic,
+    zoho_connect_attempts,
+    zoho_http_timeout,
+)
 from zoho_inventory_connector.ratelimit.clock import VirtualClock
 
 
@@ -212,6 +216,111 @@ async def test_5xx_bounded_retries() -> None:
         assert client.metrics.calls_retried == 2
 
 
+def test_zoho_timeout_uses_five_second_connect_budget() -> None:
+    timeout = zoho_http_timeout()
+    assert timeout.connect == 5.0
+    assert timeout.read == 15.0
+    assert timeout.write == 15.0
+    assert timeout.pool == 5.0
+
+
+@pytest.mark.asyncio
+async def test_inventory_connect_retries_replay_identical_request() -> None:
+    """Only connect failures retry, with the organization and auth request unchanged."""
+    clock = VirtualClock()
+    requests: list[tuple[str, str, tuple[tuple[str, str], ...], str]] = []
+    attempts = 0
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        nonlocal attempts
+        attempts += 1
+        requests.append(
+            (
+                request.method,
+                str(request.url),
+                tuple(request.url.params.multi_items()),
+                request.headers.get("authorization", ""),
+            )
+        )
+        if attempts < 4:
+            raise httpx.ConnectTimeout("offline test failure", request=request)
+        return httpx.Response(200, json={"code": 0, "items": []})
+
+    async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as http_client:
+        token_manager = TokenManager("mock-client", "mock-secret", "mock-refresh", clock=clock)
+        token_manager._access_token = "mock-access"
+        token_manager._expires_at_mono = clock.monotonic() + 3600
+        client = ZohoClient(
+            token_manager=token_manager,
+            org_id="mock-org-12345678",
+            clock=clock,
+            http_client=http_client,
+            base_url_override="https://inventory.example/inventory/v1",
+        )
+        body, cached, _as_of = await client.get("items", params={"page": "1"})
+
+    assert body["code"] == 0
+    assert cached is False
+    assert attempts == 4
+    assert len(set(requests)) == 1
+    method, url, params, authorization = requests[0]
+    assert method == "GET"
+    assert (
+        url
+        == "https://inventory.example/inventory/v1/items?page=1&organization_id=mock-org-12345678"
+    )
+    assert params == (("page", "1"), ("organization_id", "mock-org-12345678"))
+    assert authorization == "Zoho-oauthtoken mock-access"
+    assert client.metrics.calls_retried == 3
+
+
+@pytest.mark.asyncio
+async def test_inventory_connect_failures_stop_after_four_attempts() -> None:
+    clock = VirtualClock()
+    attempts = 0
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        nonlocal attempts
+        attempts += 1
+        raise httpx.ConnectTimeout("private transport text", request=request)
+
+    async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as http_client:
+        token_manager = TokenManager("mock-client", "mock-secret", "mock-refresh", clock=clock)
+        token_manager._access_token = "mock-access"
+        token_manager._expires_at_mono = clock.monotonic() + 3600
+        client = ZohoClient(
+            token_manager=token_manager,
+            org_id="mock-org",
+            clock=clock,
+            http_client=http_client,
+            max_retries=9,
+            base_url_override="https://inventory.example/inventory/v1",
+        )
+        with pytest.raises(UpstreamError) as exc_info:
+            await client.get("items", params={"page": "1"})
+
+    diagnostic = exc_info.value.transport_diagnostic
+    assert attempts == 4
+    assert diagnostic is not None
+    assert diagnostic["attempt_count"] == 4
+    assert diagnostic["max_attempts"] == 4
+    assert diagnostic["phase"] == "connect"
+    assert "after 4 attempt(s)" in str(exc_info.value)
+    assert "private transport text" not in str(exc_info.value)
+
+
+def test_connect_attempt_setting_has_four_attempt_default_and_validated_override(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.delenv("ZOHO_CONNECT_RETRIES", raising=False)
+    assert zoho_connect_attempts() == 4
+    monkeypatch.setenv("ZOHO_CONNECT_RETRIES", "2")
+    assert zoho_connect_attempts() == 2
+    monkeypatch.setenv("ZOHO_CONNECT_RETRIES", "0")
+    with pytest.raises(ValueError, match="ZOHO_CONNECT_RETRIES"):
+        zoho_connect_attempts()
+
+
 @pytest.mark.asyncio
 async def test_429_honors_retry_after_and_stops_after_bound() -> None:
     """# FR-3.3: Respect Retry-After without real sleeping and bound retries."""
@@ -275,8 +384,11 @@ async def test_org_block_and_concurrency_codes_fail_fast(
 
 
 @pytest.mark.asyncio
-async def test_transport_error_retries_then_maps_to_upstream_error() -> None:
+async def test_transport_error_retries_then_maps_to_upstream_error(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     """# FR-2.4: Network failures use bounded retry and become a typed error."""
+    monkeypatch.setenv("ZOHO_CONNECT_RETRIES", "2")
     clock = VirtualClock()
     attempts = 0
 
@@ -308,6 +420,12 @@ async def test_transport_error_retries_then_maps_to_upstream_error() -> None:
         "phase": "connect",
         "host": "inventory.invalid",
         "attempt": 2,
+        "attempt_count": 2,
+        "max_attempts": 2,
+        "attempts": [
+            {"attempt": 1, "phase": "connect"},
+            {"attempt": 2, "phase": "connect"},
+        ],
         "proxy_env_names": [],
         "network_context_hint": (
             "Network connection failed (not a credential error). If this is running inside a "
@@ -333,6 +451,8 @@ def test_transport_diagnostic_reports_safe_cause_phase_host_attempt_and_proxy_na
         "phase": "connect",
         "host": "api.example.invalid",
         "attempt": 3,
+        "attempt_count": 3,
+        "attempts": [{"attempt": 3, "phase": "connect"}],
         "proxy_env_names": ["HTTPS_PROXY", "NO_PROXY"],
         "network_context_hint": (
             "Network connection failed (not a credential error). If this is running inside a "

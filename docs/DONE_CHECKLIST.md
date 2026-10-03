@@ -120,3 +120,41 @@ This checklist records commands actually run in this workspace. A green offline 
 
 1. Keep live status as “not yet verified” until an author-confirmed real-org run exists.
 2. Final report must state what was built, three run commands, test/eval results, live-unverified facts, top limitations, and the first merchant discovery questions.
+
+## 2026-10-03: bounded connect retries and one-command live bring-up
+
+- [x] Accounts token exchange and refresh retry only connect/TLS transport failures, at most four attempts with jitter; any HTTP response returns directly to OAuth parsing and is never retried. Owned HTTP clients use a five-second connect timeout. Inventory calls use the same connect timeout and bounded connect-only retries, capped at four; non-connect transport failures keep the existing bounded retry behavior. Request replay tests compare method, URL, form/query data and headers where applicable.
+- [x] `make net-watch ARGS=--mock` — local unauthenticated Accounts and Inventory endpoints returned HTTP responses; no Zoho host was contacted.
+- [x] `make live-burst ARGS=--mock` — all stages completed: environment validation, host watch, token status, preflight, smoke, probe and assert. The final scan reported `SAFE TO SCREENSHOT`. Outputs were written below `.live_out/`, and `git check-ignore -v` confirmed that path is ignored.
+- [x] Orchestration regression tests — mock burst completes all stages, stops at the first failure, redacts a deliberately supplied secret from terminal output, and leaves the real live findings file unchanged.
+- [x] Reused the five-second connect timeout for preflight and shape-probe HTTP clients as well as the core token and Inventory clients. Updated the historical organization note in `API_NOTES.md` and `LIVE_FINDINGS.md` to reflect the author's correction; plan eligibility remains unverified.
+- [x] `make lint` — passed; Ruff reports 101 files already formatted.
+- [x] `make typecheck` — passed; mypy checked 31 source files.
+- [x] `make test` — 157 passed; source coverage 90.61% (threshold 85%).
+- [x] `make spec` — generated and verified the MCP specification with 8 tools.
+- [x] `make eval` twice — stdout and generated JSON files were byte-identical; stdout SHA-256 `93deaf90746ed9afb980f744eebcf04cc29d6a15ca112b88e582e1c3d08e2d1b`. All results are SIMULATED.
+- [x] `make demo` — completed offline against the local fictional mock.
+- [x] `make check-secrets` — secrets audit clean.
+- [x] `UV_OFFLINE=1 make clean-clone-test` — passed; local clone installed from cache and completed eval, demo and spec checks.
+- [x] `make screenshots-check` — lists all nine author-capture files as missing. No screenshot was generated or edited.
+- [x] `python scripts/scan_live_outputs.py ...` — all captured mock burst step outputs scanned clean. The ignored output directory contains only fake mock credentials and mock data.
+- [x] Read-only public GitHub browser review — main page latest commit matched local committed HEAD `3be32e8`; README tables and Mermaid rendered; docs tree exposed all expected docs; evidence files and findings/field notes were reviewed; ten README-linked docs opened successfully. The browser session already displayed a GitHub account avatar, so this was not performed in a private/logged-out window as requested. No GitHub controls were used to modify the repository.
+- [ ] Live Zoho preflight/smoke/probe/assert remain unverified in this task. No Zoho host, authenticated API, Zoho Console, credentials, grant codes, token file values, or `.env` contents were accessed. Do not change README live status.
+- [ ] No commit or push was made; the changes remain local for review.
+
+## 2026-10-03: preflight retry-path correction
+
+- [x] Investigation: `examples/live_preflight.py` sent Inventory GETs directly through its `httpx.AsyncClient` and passed literal `attempt=1` into transport diagnostics, bypassing `ZohoClient` retries. `live-smoke`, `live-probe`, and `live-assert` construct/use `ZohoClient`; its connection retry logic was active but the attempt budget was not shared with the documented `ZOHO_CONNECT_RETRIES` setting.
+- [x] Implemented shared `ZOHO_CONNECT_RETRIES` budget (default four, configurable 1–10), five-second connect timeout, jittered connect-only retries, accurate attempt totals and per-attempt phase diagnostics. HTTP responses are returned directly and never retried by this policy.
+- [x] Added offline MockTransport regressions for preflight, smoke, probe and assert. Preflight exhaustion reports four Inventory attempts and a phase entry for each; smoke, probe and assert report actual upstream attempts after transient connect failures, while probe/assert also show each exhausted attempt phase.
+- [x] `make lint` — passed; Ruff checks passed, 102 files formatted.
+- [x] `make typecheck` — passed; mypy checked 31 source files.
+- [x] `make test` — 164 passed; total source coverage 90.60% (threshold 85%).
+- [x] `make spec` — generated and verified the 8-tool MCP specification.
+- [x] `make eval` twice — stdout and all three `eval/results/*.json` files were byte-identical; stdout SHA-256 `93deaf90746ed9afb980f744eebcf04cc29d6a15ca112b88e582e1c3d08e2d1b`.
+- [x] `make demo` — completed offline against the fictional local mock.
+- [x] `make check-secrets` — secrets audit clean.
+- [x] `UV_OFFLINE=1 make clean-clone-test` — passed with locally cached dependencies; eval, demo and spec completed in the clone.
+- [x] `git diff --check` — passed.
+- [x] No Zoho or other external network calls were made for this investigation. No commit was made.
+- [ ] Live preflight, smoke, probe and assert remain unverified; do not update the README live-verification claim from these mock tests.
