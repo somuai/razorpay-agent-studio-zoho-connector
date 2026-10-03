@@ -14,7 +14,7 @@ Addresses and free-text notes are excluded from the answer shown to the agent; Z
 - If Zoho is temporarily slow or unavailable, the lookup returns an error with retry guidance. An error is not treated as proof that an item or order is missing.
 - If stock cannot be confirmed, the answer says “unknown”; it gives the agent no basis to promise availability.
 - Stock can change after it is checked. The answer includes when it was read, and some recent answers may use a short-lived cached result.
-- If shipment or invoice details are missing, the agent lists what is missing. Zoho can show shipment status and a tracking number, but its reviewed shipment record has no documented delivered-at timestamp. A date recorded in a response is not independent carrier confirmation. Carrier-confirmed delivery proof needs a carrier-tracking connection.
+- If shipment or invoice details are missing, the agent lists what is missing. Live Zoho package responses included a delivered-date field, but it was blank on the three test shipments checked. Even when populated, the date needs source validation; a date entered in Zoho does not by itself prove the carrier confirmed delivery. A carrier-tracking connection is the long-term route to independent delivery evidence.
 - If required audit recording is unavailable, the lookup stops and reports an error.
 
 ## How we would know it is working
@@ -29,4 +29,4 @@ We would first measure the real share of eligible carts containing unavailable i
 - Provide an isolated test organization and approve the minimum read-only access.
 - Agree on success measures, data access, and stop conditions before a pilot.
 
-**Live status:** no real Zoho organization has been verified for this workspace.
+**Live status:** the read-only connector passed preflight, smoke, probe and 15/15 assertions against a throwaway Zoho org on a Premium trial. The invoice-present path, Free-plan quota behavior, carrier-confirmed delivery, and Agent Studio runtime integration remain unverified.

@@ -27,13 +27,13 @@ Create five sales orders with unique references exactly `RZP-TEST-001` through `
 
 | Reference | Expected setup | Evidence expectation |
 |---|---|---|
-| RZP-TEST-001 | Invoice, package, shipment; fake carrier and tracking number | Partial; `shipment_date` and `delivery_date` unavailable unless those exact fields are exposed; delivery proof `not_available` |
-| RZP-TEST-002 | Invoice, package, shipment; fake carrier and tracking number | Partial; `shipment_date` and `delivery_date` unavailable unless those exact fields are exposed; delivery proof `not_available` |
-| RZP-TEST-003 | Invoice, package, shipment; fake carrier and tracking number | Partial; `shipment_date` and `delivery_date` unavailable unless those exact fields are exposed; delivery proof `not_available` |
-| RZP-TEST-004 | Invoice and package, no shipment | Partial; shipment status/carrier/tracking/dates missing |
-| RZP-TEST-005 | Invoice, no package or shipment | Partial; package/shipment status/carrier/tracking/dates missing |
+| RZP-TEST-001 | Package and shipment with fake carrier and tracking; no invoice (the throwaway org blocked invoice creation because of its migration date) | Partial; `delivery_date` and invoice missing; `shipping_date` and shipment status are present; delivery proof `not_available` |
+| RZP-TEST-002 | Package and shipment with fake carrier and tracking; no invoice | Partial; `delivery_date` and invoice missing; `shipping_date` and shipment status are present; delivery proof `not_available` |
+| RZP-TEST-003 | Package and shipment with fake carrier and tracking; no invoice | Partial; `delivery_date` and invoice missing; `shipping_date` and shipment status are present; delivery proof `not_available` |
+| RZP-TEST-004 | Package, no shipment; no invoice | Partial; connector reports a status, while carrier, tracking, shipment date, delivery date, and invoice are missing |
+| RZP-TEST-005 | No package or shipment; no invoice | Partial; package, status, carrier, tracking, shipment date, delivery date, and invoice are missing |
 
-Zoho's documented shipment fields in this project do not include a carrier-confirmed delivered-at timestamp. The connector's current completeness field also counts shipment and delivery dates, so a data-backed record may show `partial` even when its basic Zoho evidence exists. Do not mark a test order complete based on your expectation alone: inspect the actual output and use it to update the expected file if your organization exposes different fields. `delivery_proof` in the expected file means the connector's `delivery_date.status`; expect `not_available` for all five.
+Zoho's live package-detail shape exposed `shipment_delivered_date`, but the field was blank on the three matching shipped records checked. A populated Zoho date would still need merchant/carrier validation before calling it carrier-confirmed. The connector maps `shipping_date` to shipment date and `shipment_delivered_date` to delivery date when nonblank. The connector's completeness field counts shipment and delivery dates, so a data-backed record may show `partial` even when basic order and package evidence exists. Do not mark a test order complete from your plan; inspect the output and update expectations only from observed records. For the current test records, `delivery_proof` means the connector's `delivery_date.status` and remains `not_available` for all five.
 
 ## Expected connector results
 

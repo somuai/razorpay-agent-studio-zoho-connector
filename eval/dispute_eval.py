@@ -96,7 +96,7 @@ async def run_dispute_evaluation(
             ),
             "schema_faithful_available_count": 0,
             "schema_faithful_available_pct": 0.0,
-            "note": "The mock has a fictional delivery_date field; the reviewed Zoho shipment schema does not document delivered-at proof. Carrier integration is required.",
+            "note": "SIMULATED 0/40 uses the pre-live reading of the public Zoho schema. The live response included shipment_delivered_date, blank on three checked shipments; its source is unverified and this does not establish carrier proof. Carrier integration remains the long-term route to independent proof.",
         },
         "missing_fields_breakdown": dict(missing_fields_counter),
         "ops_impact": {

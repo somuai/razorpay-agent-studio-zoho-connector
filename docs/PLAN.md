@@ -1,8 +1,8 @@
 # Execution Plan — Zoho Inventory connector for Razorpay Agent Studio
 
-**Status:** Active; recovered from the repository's tracked baseline and reconciling it to `AGENTS.md` v2.
+**Status:** M1–M10 implementation and live Zoho API verification complete; author screenshots and final commit review remain.
 **Scope:** M1–M10. M11 (optional Gemini example) is explicitly deferred until M1–M10 are green.
-**Merchant:** Kaveri Home Goods is fictional. No merchant interview or live Zoho run is claimed.
+**Merchant:** Kaveri Home Goods is fictional. No merchant interview is claimed. The read-only Zoho path passed preflight, smoke, probe, and assertions on 2026-10-03; Agent Studio runtime integration is not claimed.
 
 ## Verification order and constraints
 
@@ -22,7 +22,7 @@ The docs-verifier owns only `docs/API_NOTES.md`. Live credentials are optional f
 | M2 — mock | `mock_zoho/`, `tests/test_mock_server.py` | FR-9; NFR-2, 4 | `make mock-server`; mock OAuth, pagination and injected faults | Mock drift; align to verified API notes and preserve fictional deterministic fixtures. |
 | M3 — OAuth | `auth/oauth.py`, `auth/token_manager.py`, `tests/test_auth.py` | FR-1; NFR-1 | `pytest tests/test_auth.py` | Refresh races or secret leakage; lock refresh and capture logs in tests. |
 | M4 — client resilience | `client/`, `ratelimit/`, `cache/`, related tests | FR-2, 3, 4, 13; NFR-2, 3 | client/rate/cache/query tests; source scan for non-GET methods | Retry amplification and query injection; bounded GET retries, code-45 no-retry, strict validated builders. |
-| M5 — live readiness | `scripts/seed_zoho.py`, `examples/live_preflight.py`, `examples/zoho_token.py`, `examples/live_smoke.py`, `examples/live_probe.py`, `examples/live_assert.py`, Makefile, live runbook/data docs | FR-11, 14; NFR-9 | Offline branches and masking are tested; live commands skip with credentials unset; live probe/assert remain pending until author prepares the personal throwaway org | Credentials unavailable; continue fully offline and leave live proof pending. |
+| M5 — live readiness | `scripts/seed_zoho.py`, `examples/live_preflight.py`, `examples/zoho_token.py`, `examples/live_smoke.py`, `examples/live_probe.py`, `examples/live_assert.py`, Makefile, live runbook/data docs | FR-11, 14; NFR-9 | Live preflight/smoke/probe/assert passed against throwaway India org on 2026-10-03; first assertion exposed cross-order packages, fixed and verified 15/15; screenshot captures remain pending | Connectivity is intermittent; bounded retries and one-command burst preserve safe diagnostics. |
 | M6 — tools and projections | `models/`, `services/`, `mcp_server/`, `mcp/tool_spec.json`, tests | FR-5, 6, 7; NFR-8 | `make spec`; tool/projection/stdout tests | Zoho schema uncertainty; project only verified fields and say `not_available` where absent. |
 | M7 — observability and evaluation | `events/`, `eval/`, `docs/MEASUREMENT.md` | FR-8, 10, 15 | `make eval` twice; JSON byte comparison | Results could look real; label every table and artifact `SIMULATED`, seed all data and timestamps. |
 | M8 — offline demo | `examples/demo.py` or current equivalent | FR-11.1 | `make demo` with no network or Zoho credentials | Demo cannot start children reliably; use bounded subprocess lifecycle and clear cleanup. |
@@ -50,4 +50,4 @@ If constrained, defer M11 first, then streamable HTTP, extra edge-case tests bey
 - [x] Complete the offline M1–M9 implementation and documentation work; lint, typecheck, tests, simulated eval, demo, live-smoke skip, seed dry-run and secret scan have run. Record detailed outputs in `docs/DONE_CHECKLIST.md`.
 - [x] Finish M10 read-only review and fixes, commit the candidate, and pass `make clean-clone-test` against the live-bring-up prep commit.
 - [x] Prepare a safe live bring-up path offline: preflight, hidden grant-code exchange, masked smoke output, read-only response-shape probe, hand-entered expected-data assertions, and schema-drift fallback; no Zoho requests made.
-- [ ] Obtain author-run live verification; if unavailable, retain “Live mode: not yet verified.”
+- [x] Obtain author-run live verification for token exchange, preflight, eight-tool smoke, probe and 15/15 assertions. Author-captured screenshots remain pending; do not imply Agent Studio runtime verification.

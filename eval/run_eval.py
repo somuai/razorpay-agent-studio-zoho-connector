@@ -169,7 +169,7 @@ async def main() -> None:
     print("\n" + "=" * 80)
     print("RAZORPAY AGENT STUDIO - ZOHO INVENTORY CONNECTOR EVALUATION REPORT")
     print("Mode: SIMULATED | Merchant: Kaveri Home Goods (Fictional) | Seed: 42")
-    print("=" * 80 + "\n")
+    print("=" * 80)
 
     print("### METRIC 1: SIMULATED mechanism check (N = 200 fictional carts)\n")
     print(
@@ -215,7 +215,7 @@ async def main() -> None:
         f"| Zoho-documented fields complete in fictional mock (order, invoice, package, shipment status, carrier, tracking) | {documented['complete_count']} | {documented['complete_pct']}% | Delivery proof not included |"
     )
     print(
-        f"| Delivery proof available in schema-faithful assessment | {delivery['schema_faithful_available_count']} | {delivery['schema_faithful_available_pct']}% | Reviewed Zoho schema has no delivered-at field; carrier integration required |"
+        f"| Delivery proof available in schema-faithful assessment | {delivery['schema_faithful_available_count']} | {delivery['schema_faithful_available_pct']}% | SIMULATED pre-live schema reading; live shipment_delivered_date was blank on three checked shipments and is not carrier proof |"
     )
     print(
         f"| Fictional mock delivery_date field present | {delivery['mock_delivery_date_field_present_count']} | {delivery['mock_delivery_date_field_present_pct']}% | Fixture field only; not schema-faithful delivery proof |"
@@ -259,7 +259,7 @@ async def main() -> None:
     print(summary["quota_feasibility"]["assumption"] + "\n")
     print("\n" + "=" * 80)
     print("ALL RESULTS ARE SIMULATED. End of Evaluation Report.")
-    print("=" * 80 + "\n")
+    print("=" * 80)
 
 
 if __name__ == "__main__":

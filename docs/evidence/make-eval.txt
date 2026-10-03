@@ -1,7 +1,7 @@
 MOCK / SIMULATED
-Command: make eval
-Date: 2026-10-02
-Commit: 4083ea0
+Command: make eval (run twice; byte-identical stdout and JSON)
+Date: 2026-10-03
+Base commit: c5ba511 (working tree changes included)
 
 .venv/bin/python -m eval.run_eval
 
@@ -9,7 +9,6 @@ Commit: 4083ea0
 RAZORPAY AGENT STUDIO - ZOHO INVENTORY CONNECTOR EVALUATION REPORT
 Mode: SIMULATED | Merchant: Kaveri Home Goods (Fictional) | Seed: 42
 ================================================================================
-
 ### METRIC 1: SIMULATED mechanism check (N = 200 fictional carts)
 
 The baseline fixture labels 27% of carts out of stock. The connector-aware zero is guaranteed by the policy rule that suppresses every cart labeled out of stock; neither is measured merchant impact.
@@ -37,7 +36,7 @@ The baseline fixture labels 27% of carts out of stock. The connector-aware zero 
 | Evidence measure | Cases | Pct (%) | Interpretation |
 |---|:---:|:---:|---|
 | Zoho-documented fields complete in fictional mock (order, invoice, package, shipment status, carrier, tracking) | 18 | 45.0% | Delivery proof not included |
-| Delivery proof available in schema-faithful assessment | 0 | 0.0% | Reviewed Zoho schema has no delivered-at field; carrier integration required |
+| Delivery proof available in schema-faithful assessment | 0 | 0.0% | SIMULATED pre-live schema reading; live shipment_delivered_date was blank on three checked shipments and is not carrier proof |
 | Fictional mock delivery_date field present | 18 | 45.0% | Fixture field only; not schema-faithful delivery proof |
 | All mock checklist fields complete (includes fictional delivery_date) | 18 | 45.0% | Fixture completeness only |
 

@@ -13,10 +13,10 @@
     {"sku": "KHG-010", "expect": {"status": "out_of_stock"}}
   ],
   "orders": [
-    {"reference_number": "RZP-TEST-001", "expect": {"found": true, "completeness": "partial", "missing_fields": ["delivery_date", "shipment_date"], "delivery_proof": "not_available"}},
-    {"reference_number": "RZP-TEST-002", "expect": {"found": true, "completeness": "partial", "missing_fields": ["delivery_date", "shipment_date"], "delivery_proof": "not_available"}},
-    {"reference_number": "RZP-TEST-003", "expect": {"found": true, "completeness": "partial", "missing_fields": ["delivery_date", "shipment_date"], "delivery_proof": "not_available"}},
-    {"reference_number": "RZP-TEST-004", "expect": {"found": true, "completeness": "partial", "missing_fields": ["carrier", "delivery_date", "delivery_status", "shipment_date", "tracking_number"], "delivery_proof": "not_available"}},
-    {"reference_number": "RZP-TEST-005", "expect": {"found": true, "completeness": "partial", "missing_fields": ["carrier", "delivery_date", "delivery_status", "package", "shipment_date", "tracking_number"], "delivery_proof": "not_available"}}
+    {"reference_number": "RZP-TEST-001", "expect": {"found": true, "completeness": "partial", "missing_fields": ["delivery_date", "invoice"], "delivery_proof": "not_available"}},
+    {"reference_number": "RZP-TEST-002", "expect": {"found": true, "completeness": "partial", "missing_fields": ["delivery_date", "invoice"], "delivery_proof": "not_available"}},
+    {"reference_number": "RZP-TEST-003", "expect": {"found": true, "completeness": "partial", "missing_fields": ["delivery_date", "invoice"], "delivery_proof": "not_available"}},
+    {"reference_number": "RZP-TEST-004", "expect": {"found": true, "completeness": "partial", "missing_fields": ["carrier", "delivery_date", "invoice", "shipment_date", "tracking_number"], "delivery_proof": "not_available"}},
+    {"reference_number": "RZP-TEST-005", "expect": {"found": true, "completeness": "partial", "missing_fields": ["carrier", "delivery_date", "delivery_status", "invoice", "package", "shipment_date", "tracking_number"], "delivery_proof": "not_available"}}
   ]
 }

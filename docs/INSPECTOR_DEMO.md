@@ -10,6 +10,8 @@ This is a manual inspection guide, not proof that a live Zoho organization has b
 
 ## Mock server API
 
+The Inspector is a separate MCP client window; it is not the terminal and it is not the Zoho API Console. The screenshot should show the Inspector connected to this server, its tool list, and one successful tool result. The offline steps below use fictional mock data. They prove the MCP interface can be explored, not that the Agent Studio runtime is connected.
+
 1. In terminal A, start the local mock:
 
    ```bash
@@ -18,25 +20,27 @@ This is a manual inspection guide, not proof that a live Zoho organization has b
 
    It is configured at `http://127.0.0.1:8000`; in another shell set `ZOHO_API_BASE_URL=http://127.0.0.1:8000/inventory/v1` and `ZOHO_ACCOUNTS_BASE_URL=http://127.0.0.1:8000` for the connector process. The server uses fictional seeded data.
 
-2. In terminal B, launch the stdio server with the mock endpoints and placeholder mock credentials:
+2. Leave terminal A running. Open a second Terminal window (Terminal B) and paste the following block. The Inspector `-e` options pass fictional mock settings to its child server, including a separate temporary token-cache path so the project's real token file is not read. It starts the Inspector and its MCP server together; keep this window open while you inspect the browser tab that opens:
 
    ```bash
-   export ZOHO_API_BASE_URL=http://127.0.0.1:8000/inventory/v1
-   export ZOHO_ACCOUNTS_BASE_URL=http://127.0.0.1:8000
-   export ZOHO_CLIENT_ID=mock_client_id
-   export ZOHO_CLIENT_SECRET=mock_client_secret
-   export ZOHO_REFRESH_TOKEN=mock_refresh_token
-   export ZOHO_ORG_ID=org_kaveri_blr_001
-   npx @modelcontextprotocol/inspector .venv/bin/python -m zoho_inventory_connector.mcp_server.server
+   npx --yes @modelcontextprotocol/inspector@latest \
+     -e ZOHO_API_BASE_URL=http://127.0.0.1:8000/inventory/v1 \
+     -e ZOHO_ACCOUNTS_BASE_URL=http://127.0.0.1:8000 \
+     -e ZOHO_CLIENT_ID=mock_client_id \
+     -e ZOHO_CLIENT_SECRET=mock_client_secret \
+     -e ZOHO_REFRESH_TOKEN=mock_refresh_token \
+     -e ZOHO_ORG_ID=org_kaveri_blr_001 \
+     -e ZOHO_TOKEN_FILE=/tmp/fde-mock-inspector-token.json \
+     .venv/bin/python -m zoho_inventory_connector.mcp_server.server
    ```
 
-   The exact Inspector CLI invocation can vary by installed Inspector version. If your version opens a browser UI without launching the command, select **STDIO**, enter the command and arguments separately (`.venv/bin/python`, `-m`, `zoho_inventory_connector.mcp_server.server`), then connect.
+   The Inspector's local browser page can contain a one-session UI access token in its address bar. Crop the browser capture to the page content so the address bar is excluded. Do not type real Zoho credentials into Inspector; this section is mock mode. If your installed Node version is below the Inspector package's stated engine requirement, use a compatible Node version rather than an older Inspector release.
 
-3. Inspect the registered tools and schemas. Try `search_items` with `{"query":"Ikat","limit":5}` or inspect `get_stock_availability` with the fictional SKU `KHG-CUSH-001`. Use returned IDs for detail and evidence tools; mock IDs are bounded fixture IDs and production Zoho IDs are validated before request construction.
+3. In the Inspector page, open **Tools**, confirm the connector's tools appear, select `get_stock_availability`, enter `{"skus_or_ids":["KHG-CUSH-001"]}`, and run it. Confirm the response shows a stock status, an as-of time, and cache state. The visible tool list plus that result is the mock Inspector screenshot. Do not label it as live.
 
 4. Stop the Inspector process and mock server when done. Do not include unmasked order/customer information in a recording.
 
-## Live mode (not verified)
+## Live mode (Zoho API path verified; Inspector live capture pending)
 
 Only use the separate personal throwaway organization on the India data center. Never use an institutional organization. The author creates and populates this org manually and handles credentials outside chat. Use only the documented read scopes for the connector.
 

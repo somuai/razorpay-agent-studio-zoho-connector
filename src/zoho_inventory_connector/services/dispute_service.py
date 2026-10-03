@@ -25,6 +25,15 @@ def _dict_rows(value: object) -> list[dict[str, Any]]:
     return [row for row in value if isinstance(row, dict)]
 
 
+def _first_nonempty(record: dict[str, Any], *keys: str) -> Any | None:
+    """Select a populated Zoho field alias without treating blank strings as evidence."""
+    for key in keys:
+        value = record.get(key)
+        if value is not None and (not isinstance(value, str) or value.strip()):
+            return value
+    return None
+
+
 class DisputeService:
     """Service to assemble chargeback rebuttal fulfillment proof without speculation (FR-5.4)."""
 
@@ -112,7 +121,14 @@ class DisputeService:
                     cache_ttl=120.0,
                     bypass_cache=bypass_cache,
                 )
-                packages = _dict_rows(pkg_res.get("packages"))
+                # Zoho accepted `salesorder_id` but returned a cross-order page
+                # in the live org. Do not treat the first unrelated package as
+                # evidence for this order; retain only exact local ID matches.
+                packages = [
+                    package
+                    for package in _dict_rows(pkg_res.get("packages"))
+                    if str(package.get("salesorder_id", "")) == so_id_clean
+                ]
             except NotFoundError:
                 packages = []
 
@@ -121,8 +137,18 @@ class DisputeService:
             # Package detail may embed shipment_order; use that documented path and
             # leave shipment fields unavailable if the package does not expose it.
             for package in packages:
-                shipment = package.get("shipment_order")
-                if not isinstance(shipment, dict) and package.get("package_id"):
+                raw_shipment = package.get("shipment_order")
+                shipment = dict(raw_shipment) if isinstance(raw_shipment, dict) else {}
+                complete_enough = all(
+                    (
+                        _first_nonempty(shipment, "status", "shipment_status"),
+                        _first_nonempty(shipment, "carrier"),
+                        _first_nonempty(shipment, "tracking_number"),
+                        _first_nonempty(shipment, "shipment_date", "shipping_date"),
+                        _first_nonempty(shipment, "delivery_date", "shipment_delivered_date"),
+                    )
+                )
+                if not complete_enough and package.get("package_id"):
                     try:
                         pkg_res, _, _ = await self.client.get(
                             f"/packages/{package['package_id']}",
@@ -130,14 +156,23 @@ class DisputeService:
                             bypass_cache=bypass_cache,
                         )
                         pkg_detail = pkg_res.get("package", {})
-                        shipment = (
+                        detail_shipment = (
                             pkg_detail.get("shipment_order")
                             if isinstance(pkg_detail, dict)
                             else None
                         )
+                        if isinstance(detail_shipment, dict):
+                            shipment.update(
+                                {
+                                    key: value
+                                    for key, value in detail_shipment.items()
+                                    if value is not None
+                                    and (not isinstance(value, str) or value.strip())
+                                }
+                            )
                     except NotFoundError:
-                        shipment = None
-                if isinstance(shipment, dict):
+                        pass
+                if shipment:
                     shipments.append(shipment)
 
         # 3. Compile Individual Evidence Fields
@@ -218,9 +253,14 @@ class DisputeService:
             )
             missing_fields.append("tracking_number")
 
-        if active_shipment and active_shipment.get("shipment_date"):
+        shipment_date_value = (
+            _first_nonempty(active_shipment, "shipment_date", "shipping_date")
+            if active_shipment
+            else None
+        )
+        if shipment_date_value:
             shipment_date_field = EvidenceField.present(
-                value=str(active_shipment["shipment_date"]),
+                value=str(shipment_date_value),
                 source="shipmentorders",
             )
         else:
@@ -229,9 +269,14 @@ class DisputeService:
             )
             missing_fields.append("shipment_date")
 
-        if active_shipment and active_shipment.get("delivery_date"):
+        delivery_date_value = (
+            _first_nonempty(active_shipment, "delivery_date", "shipment_delivered_date")
+            if active_shipment
+            else None
+        )
+        if delivery_date_value:
             delivery_date_field = EvidenceField.present(
-                value=str(active_shipment["delivery_date"]),
+                value=str(delivery_date_value),
                 source="shipmentorders",
             )
         else:
@@ -240,9 +285,14 @@ class DisputeService:
             )
             missing_fields.append("delivery_date")
 
-        if active_shipment and active_shipment.get("status"):
+        delivery_status_value = (
+            _first_nonempty(active_shipment, "status", "shipment_status")
+            if active_shipment
+            else None
+        )
+        if delivery_status_value:
             delivery_status_field = EvidenceField.present(
-                value=str(active_shipment["status"]),
+                value=str(delivery_status_value),
                 source="shipmentorders",
             )
         else:

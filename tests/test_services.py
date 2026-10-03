@@ -196,3 +196,113 @@ async def test_dispute_service_reads_nested_package_shipment_not_undocumented_li
     assert result.delivery_date.status == "not_available"
     assert "/shipmentorders" not in calls
     assert "/packages/98765" in calls
+
+
+@pytest.mark.asyncio
+async def test_dispute_service_ignores_packages_for_other_orders(
+    mock_client: ZohoClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A package-list filter may return a global page; unrelated rows are not evidence."""
+    calls: list[str] = []
+
+    async def cross_order_package_page(
+        endpoint: str, **kwargs: object
+    ) -> tuple[dict[str, object], bool, str]:
+        calls.append(endpoint)
+        if endpoint == "/salesorders/12345":
+            return (
+                {"salesorder": {"salesorder_id": "12345", "salesorder_number": "SO-TARGET"}},
+                False,
+                "2026-10-03T00:00:00+00:00",
+            )
+        if endpoint == "/invoices":
+            return ({"invoices": []}, False, "2026-10-03T00:00:00+00:00")
+        if endpoint == "/packages":
+            assert kwargs.get("params") == {"salesorder_id": "12345"}
+            return (
+                {
+                    "packages": [
+                        {"package_id": "99999", "salesorder_id": "54321"},
+                        {"package_id": "98765", "salesorder_id": "12345"},
+                    ]
+                },
+                False,
+                "2026-10-03T00:00:00+00:00",
+            )
+        if endpoint == "/packages/98765":
+            return (
+                {
+                    "package": {
+                        "package_id": "98765",
+                        "shipment_order": {
+                            "status": "shipped",
+                            "carrier": "Synthetic Carrier",
+                            "tracking_number": "FAKE-TRACKING",
+                        },
+                    }
+                },
+                False,
+                "2026-10-03T00:00:00+00:00",
+            )
+        raise AssertionError(f"Unexpected endpoint {endpoint}")
+
+    monkeypatch.setattr(mock_client, "get", cross_order_package_page)
+    result = await DisputeService(mock_client).get_order_fulfillment_evidence("12345")
+
+    assert result.package.status == "present"
+    assert result.carrier.status == "present"
+    assert result.tracking_number.status == "present"
+    assert "/packages/99999" not in calls
+    assert "/packages/98765" in calls
+
+
+@pytest.mark.asyncio
+async def test_dispute_service_reads_live_shipment_field_aliases(
+    mock_client: ZohoClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A sparse nested shipment triggers detail lookup and Zoho field aliases are normalized."""
+
+    async def sparse_embedded_shipment(
+        endpoint: str, **_kwargs: object
+    ) -> tuple[dict[str, object], bool, str]:
+        stamp = "2026-10-03T00:00:00+00:00"
+        if endpoint == "/salesorders/12345":
+            return (
+                {
+                    "salesorder": {
+                        "salesorder_id": "12345",
+                        "salesorder_number": "SO-TARGET",
+                        "packages": [{"package_id": "98765", "shipment_order": {}}],
+                    }
+                },
+                False,
+                stamp,
+            )
+        if endpoint == "/invoices":
+            return ({"invoices": []}, False, stamp)
+        if endpoint == "/packages/98765":
+            return (
+                {
+                    "package": {
+                        "shipment_order": {
+                            "status": "shipped",
+                            "carrier": "Synthetic Carrier",
+                            "tracking_number": "FAKE-TRACKING",
+                            "shipping_date": "2026-10-02",
+                            "shipment_delivered_date": "2026-10-03",
+                        }
+                    }
+                },
+                False,
+                stamp,
+            )
+        raise AssertionError(f"Unexpected endpoint {endpoint}")
+
+    monkeypatch.setattr(mock_client, "get", sparse_embedded_shipment)
+    result = await DisputeService(mock_client).get_order_fulfillment_evidence("12345")
+
+    assert result.shipment_date.status == "present"
+    assert result.shipment_date.value == "2026-10-02"
+    assert result.delivery_date.status == "present"
+    assert result.delivery_date.value == "2026-10-03"
+    assert result.delivery_status.value == "shipped"

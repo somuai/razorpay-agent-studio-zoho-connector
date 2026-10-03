@@ -1,15 +1,15 @@
 # Completion checklist and evidence
 
-This checklist records commands actually run in this workspace. A green offline gate does not establish live Zoho compatibility or merchant impact. The author has confirmed a live preflight and smoke run; full live probe/assert and author-captured evidence remain pending, so the README continues to say live verification is not yet complete.
+This checklist records commands actually run in this workspace. Offline evaluation does not establish merchant impact. On 2026-10-03, token exchange, live preflight, smoke, probe, and all 15 expected-data assertions passed against the throwaway India org. The read-only Zoho path is verified for that org; Agent Studio runtime integration, carrier-confirmed delivery, Free-plan quota behavior, and invoice-present behavior remain unverified. Author-supplied captures cover mock test/demo, live smoke/assertion, a successful live Inspector call, and two Zoho UI screens. The evaluation image is stale; separate preflight and probe screenshots are unavailable. Earlier entries below are historical; the final publication-readiness section records the current snapshot.
 
 ## Quality gates
 
-- [x] `make lint` — `ruff check .`: all checks passed; `ruff format --check .`: 90 files already formatted.
-- [x] `make typecheck` — mypy: success, no issues in 29 source files.
-- [x] `make test` — 113 passed; total source coverage 90.23% (threshold 85%). Includes offline tests for live command skip/masking, token exchange handling, schema drift, and nested package shipment fallback.
+- [x] `make lint` — `ruff check .`: all checks passed; `ruff format --check .`: 102 files already formatted.
+- [x] `make typecheck` — mypy: success, no issues in 31 source files.
+- [x] `make test` — 168 passed; total source coverage 90.67% (threshold 85%). Includes offline regressions for cross-order package filtering, sparse shipment field aliases, and OAuth diagnostics.
 - [x] `make spec` — generated and verified `mcp/tool_spec.json`; 8 registered tools.
 - [x] `make eval` twice — all three result JSON files compared byte-for-byte and identical. Results are **SIMULATED**, M1 is a mechanism check, and the sensitivity sweep is deterministic. Quota table: warm fixture 0.15 calls/decision → 6,666 / 3,333 / 1,666 decisions at 100/50/25% allocation; cold-cache fixture mix 1.235 calls/decision → 809 / 404 / 202. M2 separates Zoho-documented evidence fields (18/40 in the fixture), schema-faithful delivery proof (0/40; requires carrier integration), and mock-only `delivery_date` presence (18/40).
-- [x] `make demo` — started the fictional mock API and separate MCP stdio server; MCP client drove in-stock, low-stock, out-of-stock, evidence, and forced 429/backoff scenarios. Metrics summary: 5 tool events, 3 retries, 1 throttled tool call, 1 tool error.
+- [x] `make demo` — fictional mock API and MCP stdio server completed in-stock, low-stock, out-of-stock, evidence, and forced 429/backoff scenarios. Metrics summary: 6 tool events, 3 retries, 1 throttled tool call, 1 tool error.
 - [x] Read-only adversarial review — findings fixed: clarified upstream response vs agent-visible fields; changed delivery wording to recorded date (not carrier-confirmed); renamed mock complete-case metric; masked reference/order IDs in audit records and aligned example/docs. Re-review found no remaining actionable findings.
 - [x] Zoho dashboard check — signed-in Zoho Inventory dashboard observed in the India data center; Premium trial showed 14 days remaining and setup at 0%. The earlier dashboard was excluded from testing; the current personal throwaway target is still not live-verified. No live API evidence is claimed here.
 - [x] `make live-smoke` without credentials — skipped cleanly; required `ZOHO_*` credentials are not configured.
@@ -24,7 +24,7 @@ This checklist records commands actually run in this workspace. A green offline 
 - [x] `make check-secrets` — secrets audit clean. Obvious mock/example placeholders are excluded from the secret-like literal match.
 - [x] `make live-smoke` — skipped cleanly with credential variables unset; refresh token may be read from the private token file.
 - [x] `make clean-clone-test` — passed against commit `2cc5ba4` after the log-redaction change; README placeholder check passed, a fresh clone installed 47 locked packages, deterministic SIMULATED eval completed, offline demo completed, and the 8-tool MCP spec generated and verified.
-- [ ] Full live verification and author-captured screenshots — the 2026-10-02 post-fix smoke returned transport errors for all eight tools, then the single preflight discriminator failed at token refresh before Inventory calls. `live-probe` and `live-assert` were not run after that failure. Direct unauthenticated curl checks returned Accounts HTTP 200 and Inventory HTTP 401; no proxy variables were set. Live status remains unverified; do not substitute mock output.
+- [x] Full live verification — superseded by the 2026-10-03 successful throwaway-org burst documented below. The requested real screenshots are still missing; do not substitute mock output.
 
 ## 2026-10-02 live connectivity and request-path investigation
 
@@ -118,7 +118,7 @@ This checklist records commands actually run in this workspace. A green offline 
 
 ## Before claiming complete
 
-1. Keep live status as “not yet verified” until an author-confirmed real-org run exists.
+1. Keep the live claim scoped to the passing read-only Zoho run; do not imply Agent Studio runtime integration or carrier-confirmed delivery.
 2. Final report must state what was built, three run commands, test/eval results, live-unverified facts, top limitations, and the first merchant discovery questions.
 
 ## 2026-10-03: bounded connect retries and one-command live bring-up
@@ -157,4 +157,53 @@ This checklist records commands actually run in this workspace. A green offline 
 - [x] `UV_OFFLINE=1 make clean-clone-test` — passed with locally cached dependencies; eval, demo and spec completed in the clone.
 - [x] `git diff --check` — passed.
 - [x] No Zoho or other external network calls were made for this investigation. No commit was made.
-- [ ] Live preflight, smoke, probe and assert remain unverified; do not update the README live-verification claim from these mock tests.
+- [x] At the time of this retry-path correction, live commands had not yet been rerun. The later real-org results below supersede that historical status.
+
+## 2026-10-03: live bring-up and shipment association correction
+
+- [x] Exchanged the author's newly supplied read-scope grant with `make zoho-token`; the helper stored the rotated token in the ignored 0600 token file and printed no token value.
+- [x] Final `make live-burst` against the throwaway India org: environment validation, host watch, token status, preflight, smoke, probe, and assertion all exited 0. Preflight reported 7 upstream calls; smoke reported 10; assertions matched 15/15 rows. Every step passed the privacy scanner and the run ended `SAFE TO SCREENSHOT`.
+- [x] The live probe recorded 16 GET attempts. It observed a candidate `shipment_delivered_date` field, blank on the three matching shipped records checked; carrier-source semantics remain unverified.
+- [x] The first live assertion exposed that the package list's `salesorder_id` query returned cross-order rows. Added exact local ID filtering, package-detail fallback for sparse nested shipment objects, and field aliases for `shipping_date` / `shipment_delivered_date`; added offline regression tests.
+- [x] Updated the ignored `live_expected.yaml` from observed API results and the tracked example/checklist docs. The invoice-present path remains mock-only because the throwaway org rejected invoice creation due to its migration date.
+- [x] `make lint` and `make typecheck` — passed; Ruff reports 102 files formatted and mypy checks 31 source files.
+- [x] `make test` — 166 passed; 90.67% source coverage.
+- [x] `make spec` — generated and verified 8 MCP tools.
+- [x] `make eval` twice — stdout and all three JSON files were byte-identical; stdout SHA-256 `93deaf90746ed9afb980f744eebcf04cc29d6a15ca112b88e582e1c3d08e2d1b`.
+- [x] `make demo`, `make check-secrets`, `UV_OFFLINE=1 make clean-clone-test`, and `git diff --check` — passed.
+- [x] `make screenshots-check` — at that historical point the expected files were missing. Current presence is recorded in the final publication-readiness section.
+- [ ] No commit or push was made; review the working diff before deciding whether to commit.
+
+## 2026-10-03: final handoff refresh
+
+- [x] Updated README live status with the verified scope: token exchange, preflight, all eight smoke tools, read-only probe, and 15/15 live assertions passed against a throwaway India org on a Premium trial.
+- [x] Documented the first assertion failure and fix: Zoho package listing returned cross-order rows despite `salesorder_id`; exact local filtering and sparse package-detail fallback prevent unrelated shipment evidence. `test_dispute_service_ignores_packages_for_other_orders` is the regression test.
+- [x] Corrected delivery-date language across API notes, README, discovery, capability, merchant, limitation, design and measurement docs. The response field `shipment_delivered_date` was blank on three checked shipments; its source and carrier-confirmation semantics remain unverified. The simulated 0/40 is retained as the pre-live schema-based estimate, not live coverage.
+- [x] Final live counts from `make live-burst`: preflight 7 upstream calls; smoke 10; probe 16 HTTP attempts across 16 GET probes; assertions 15/15 with 31 HTTP attempts. Raw outputs and scans remain in ignored `.live_out/20261003T083016Z/`.
+- [x] `make lint` — passed; Ruff checks clean, 102 files formatted.
+- [x] `make typecheck` — passed; mypy checked 31 source files.
+- [x] `make test` — 166 passed; 90.67% source coverage (threshold 85%).
+- [x] `make spec` — passed; 8 MCP tools registered.
+- [x] `make eval` twice — stdout and all three generated JSON files were byte-identical; stdout SHA-256 `512e7c4a4a2a30caf18fc24c55ce16345e54548b129219dae38a15911a26d986`. All results remain SIMULATED; delivery-proof interpretation notes the pre-live schema basis and live blank field.
+- [x] `make demo` — passed with fictional local mock scenarios.
+- [x] `make check-secrets` and `git diff --check` — passed after documentation/evidence updates.
+- [x] `UV_OFFLINE=1 make clean-clone-test` — passed after README/docs/eval changes; mock eval, demo and MCP spec completed in the clone.
+- [x] `make screenshots-check` — this historical check predates the later author-supplied Inspector screenshot and PNG copies. Current presence is recorded in the final publication-readiness section.
+- [x] MCP Inspector mock check — launched Inspector against the local fictional mock and confirmed a successful `get_stock_availability` response. This is separate from the user-supplied live Inspector screenshot.
+- [x] `make zoho-token` offline diagnostic update — the helper now prints only sanitized OAuth response metadata and maps `invalid_grant`, `invalid_client`, throttling, and transport failures to distinct next steps. Full `make test` passed (168 tests, 90.67% coverage); `make lint`, `make typecheck`, `make spec`, `make check-secrets`, and `git diff --check` passed. `pytest -q tests/test_zoho_token.py` also passed (6 tests). No live token exchange was made during this update.
+- [ ] Commit/push — was pending when this historical entry was written; see the final publication-readiness section.
+
+## 2026-10-03: GitHub publication readiness
+
+- [x] README displays user-supplied screenshots for mock test/demo, live smoke/assertions, a successful live Inspector `list_sales_orders` call, and Zoho item/order UI. PNG rendering copies preserve the originals; no screenshot content was edited.
+- [x] `make screenshots-check` — test, demo, smoke, assertion, Inspector, and Zoho UI captures present. Stale evaluation, separate preflight, and probe captures remain unavailable.
+- [x] `make lint` — passed; Ruff reports 102 files formatted.
+- [x] `make typecheck` — passed; mypy checked 31 source files.
+- [x] `make test` — 168 passed; 90.67% source coverage.
+- [x] `make spec` — passed; 8 tools registered and generated spec verified.
+- [x] `make eval` twice — stdout and all three JSON outputs byte-identical; stdout SHA-256 `512e7c4a4a2a30caf18fc24c55ce16345e54548b129219dae38a15911a26d986`.
+- [x] `make demo` — passed against the fictional local mock; six tool events, three retries, one throttled call, and one tool error.
+- [x] `make check-secrets`, `git diff --check`, and evidence scans — clean; scans found no long numeric strings, email addresses, or token-like patterns.
+- [x] `UV_OFFLINE=1 make clean-clone-test` — passed for the README revision at the then-current committed HEAD; rerun after committing this release snapshot.
+- [x] No live Zoho calls were made for this publication-readiness pass.
+- [ ] Create a GitHub release after committing and reviewing this snapshot. No Python package artifact is published.

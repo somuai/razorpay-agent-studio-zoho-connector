@@ -28,7 +28,7 @@ flowchart LR
 
 The stock service uses an explicit `actual_available_stock` value or a single-location `location_actual_available_stock` value; it never substitutes physical `stock_on_hand`. If the available quantity is ambiguous across several locations, it returns `unknown`. Low stock uses `reorder_level` or a configurable default. These are code-level rules, not a verified definition of sellability for a merchant. The evidence service marks absent fields unavailable and preserves typed upstream errors rather than presenting them as empty evidence; delivery time and merchant-specific linkage still require live validation. See [Limitations](LIMITATIONS.md).
 
-**Delivery-proof gap:** the reviewed Zoho shipment schema documents status, carrier and tracking number, but no delivered-at timestamp. A Zoho-only lookup cannot provide carrier-confirmed delivery proof for a chargeback. The production direction is a carrier-tracking integration, after discovery confirms which carriers and evidence fields the merchant needs.
+**Delivery-proof gap:** live package responses included `shipment_delivered_date`, but it was blank on the three matching shipped records checked. Its source and meaning are not established as carrier-confirmed; a date entered in Zoho is not independent carrier evidence. Ask who or what sets the field and how soon, then add a carrier-tracking integration if independent proof is required.
 
 The app-facing server is FastMCP over stdio. Tool telemetry goes to stderr; PII-minimized audit events go to a separate mode-0600 JSONL file selected by `ZOHO_AUDIT_LOG_FILE`. These local sinks still need deployment-level access and retention controls. The checked-in `mcp/tool_spec.json` is generated from the server's registered tool schemas.
 
@@ -46,12 +46,12 @@ The app-facing server is FastMCP over stdio. Tool telemetry goes to stderr; PII-
 ## Production extensions tied to M1–M3
 
 - **M1, wasted nudges:** validate which Zoho stock quantity means sellable for the merchant; measure stock freshness at decision time; add cache invalidation if 60-second staleness changes suppression decisions. Pilot against a control group before changing discount policy.
-- **M2, evidence completeness:** map the merchant's actual package and carrier process, find where delivery confirmation is recorded, and measure missing fields by source. Zoho status/tracking alone is not carrier-confirmed delivery proof; add a verified carrier-tracking integration if the evidence gap is material. Never infer delivery.
+- **M2, evidence completeness:** map the merchant's package and carrier process, find who or what records the Zoho delivered-date field, measure update lag, and count missing fields by source. A Zoho status/date alone is not carrier-confirmed delivery proof; add a verified carrier-tracking integration if the evidence gap is material. Never infer delivery.
 - **M3, cost and quota:** compare agent request volume with all Zoho consumers, export call/cache/retry metrics, and use a shared limiter if running multiple replicas. Agree on a quota budget and stop conditions with operations.
 
 ## Current project readiness
 
-The repository contains the MCP server, service layer, client, mock API, evaluation outputs, tool specification, offline demo, OAuth helper, live-smoke helper, and an isolated seeded-data helper. Live Zoho behavior remains unverified until the author runs the read-only smoke path in a disposable organization and confirms it.
+The repository contains the MCP server, service layer, client, mock API, evaluation outputs, tool specification, offline demo, OAuth helper, live-smoke helper, and an isolated seeded-data helper. The read-only Zoho preflight, smoke, probe, and assertions passed against the throwaway organization on 2026-10-03. Agent Studio runtime loading and credential storage remain untested.
 ### OAuth token reuse across commands
 
 The private `0600` token file stores the current access token and absolute expiry alongside the refresh token. New CLI processes reuse that access token while it has more than five minutes remaining, only when the cached client-credentials fingerprint matches the configured client. Writes use a sidecar file lock, a unique `0600` temporary file, and an atomic replace so concurrent writers cannot share a temporary path or expose a partial JSON file. The in-process lock provides single-flight refreshes within one process; separate processes can still refresh concurrently if no valid cache entry exists. Preflight uses the same cache instead of forcing a token request. A 401 invalidates the rejected cached access token before refresh, while preserving the refresh token if refresh fails.

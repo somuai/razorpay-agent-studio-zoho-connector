@@ -84,10 +84,57 @@ def test_expired_grant_message_does_not_leak_code(
     monkeypatch.setattr(zoho_token.getpass, "getpass", lambda _prompt: "sensitive-grant-code")
 
     async def fake_exchange(**_kwargs: object) -> dict[str, object]:
-        raise AuthError("Zoho rejected authorization code (invalid_grant)")
+        raise AuthError(
+            "Zoho Accounts authorization code exchange rejected: operation=exchange; "
+            "host=accounts.zoho.in; HTTP 400; body_json=true; "
+            "oauth_error=invalid_grant; error_description=expired"
+        )
 
     monkeypatch.setattr(zoho_token, "exchange_code_for_tokens", fake_exchange)
     assert asyncio.run(zoho_token._run()) == 1
     output = capsys.readouterr().out
-    assert "Codes expire in" in output
+    assert "Generate a new code" in output
+    assert "oauth_error=invalid_grant" in output
     assert "sensitive-grant-code" not in output
+
+
+@pytest.mark.parametrize(
+    ("message", "http_status", "expected"),
+    [
+        (
+            "Zoho Accounts authorization code exchange rejected: operation=exchange; "
+            "host=accounts.zoho.in; HTTP 401; body_json=true; "
+            "oauth_error=invalid_client; error_description=client credentials rejected",
+            401,
+            "match the Self Client",
+        ),
+        (
+            "Zoho Accounts authorization code exchange rejected: operation=exchange; "
+            "host=accounts.zoho.in; HTTP 429; body_json=false; "
+            "oauth_error=absent; error_description=too many requests",
+            429,
+            "wait 10 minutes",
+        ),
+    ],
+)
+def test_token_exchange_reports_safe_oauth_diagnostics(
+    message: str,
+    http_status: int,
+    expected: str,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    _env(monkeypatch, tmp_path / "token.json")
+    monkeypatch.setattr(zoho_token.getpass, "getpass", lambda _prompt: "sensitive-grant-code")
+
+    async def fake_exchange(**_kwargs: object) -> dict[str, object]:
+        raise AuthError(message, http_status=http_status)
+
+    monkeypatch.setattr(zoho_token, "exchange_code_for_tokens", fake_exchange)
+    assert asyncio.run(zoho_token._run()) == 1
+    output = capsys.readouterr().out
+    assert expected in output
+    assert "accounts.zoho.in" in output
+    assert "sensitive-grant-code" not in output
+    assert not (tmp_path / "token.json").exists()

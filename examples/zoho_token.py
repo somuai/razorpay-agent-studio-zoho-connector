@@ -15,6 +15,8 @@ from zoho_inventory_connector.auth.oauth import (
     exchange_code_for_tokens,
     get_accounts_base_url,
 )
+from zoho_inventory_connector.client.errors import AuthError
+from zoho_inventory_connector.events.logging_safety import redact_text
 
 
 def _persist_tokens(
@@ -90,12 +92,33 @@ async def _run() -> int:
             accounts_base_url=get_accounts_base_url(dc, os.environ.get("ZOHO_ACCOUNTS_BASE_URL")),
         )
     except Exception as exc:
-        # Never echo the exception string: it may contain request details or secrets.
-        detail = getattr(exc, "message", "OAuth exchange failed")
-        if "invalid_grant" in str(detail):
+        # AuthError messages from the OAuth layer contain only redacted response
+        # metadata or safe transport diagnostics. Never print arbitrary exception text.
+        detail = getattr(exc, "message", None)
+        safe_detail = redact_text(detail)[:1000] if isinstance(detail, str) else ""
+        if isinstance(exc, AuthError) and (
+            "oauth_error=invalid_grant" in safe_detail or "oauth_error=invalid_code" in safe_detail
+        ):
             print(
-                "Zoho rejected the grant code. Codes expire in 1–2 minutes; generate a new code and rerun make zoho-token."
+                "Zoho rejected the grant code. Generate a new code for the same Self Client and rerun make zoho-token. "
+                + safe_detail
             )
+        elif isinstance(exc, AuthError) and "oauth_error=invalid_client" in safe_detail:
+            print(
+                "Zoho rejected the client credentials. Check that ZOHO_CLIENT_ID and "
+                "ZOHO_CLIENT_SECRET match the Self Client that generated the code. " + safe_detail
+            )
+        elif isinstance(exc, AuthError) and (
+            exc.http_status == 429 or "too many requests" in safe_detail.lower()
+        ):
+            print(
+                "Zoho throttled token generation; wait 10 minutes before trying again. "
+                + safe_detail
+            )
+        elif isinstance(exc, AuthError) and exc.transport_diagnostic is not None:
+            print(f"Zoho token exchange transport failure: {safe_detail}")
+        elif isinstance(exc, AuthError) and safe_detail:
+            print(f"Zoho token exchange rejected: {safe_detail}")
         else:
             print(
                 f"Zoho token exchange failed ({type(exc).__name__}); check the data center, client settings, redirect URI, and scopes."

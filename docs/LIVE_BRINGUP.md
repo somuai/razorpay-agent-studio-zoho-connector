@@ -1,6 +1,6 @@
 # Live bring-up runbook
 
-Live mode remains **not verified** until the author confirms the final read-only smoke run against a personal throwaway Zoho Inventory organization in the India data center. Never use the institutional organization. Keep `.env`, grant codes, refresh tokens, account identifiers, and screenshots with personal data out of Git and chat.
+The read-only preflight, smoke, probe, and assertion sequence passed against the throwaway Zoho Inventory organization in the India data center on 2026-10-03. This verifies the tested Zoho connector path only; it does not verify Agent Studio runtime loading, carrier-confirmed delivery, or Free-plan quota behavior. Never use the institutional organization. Keep `.env`, grant codes, refresh tokens, account identifiers, and screenshots with personal data out of Git and chat.
 
 Live commands read credentials from the environment and should be run from the author's own terminal. A connect timeout has no HTTP status and is not a credential rejection; diagnostics include the exception class, phase and host. Mock-mode tests and offline gates need no Zoho credentials.
 
@@ -42,7 +42,7 @@ Run these in order from the repository root:
 6. `make live-probe`
    - Performs read-only endpoint probes and writes field-name/type findings to `docs/LIVE_FINDINGS.md`. A result is `INCONCLUSIVE` when the org lacks suitable records. No response values are recorded.
 7. `make live-assert`
-   - Reads the private local `live_expected.yaml` copied from `live_expected.example.yaml`, calls the connector tools, and prints a pass/fail diff for each expected item/order. Delivery proof should be `not_available`; Zoho's documented shipment schema has no delivered-at timestamp.
+   - Reads the private local `live_expected.yaml` copied from `live_expected.example.yaml`, calls the connector tools, and prints a pass/fail diff for each expected item/order. The live response shape includes `shipment_delivered_date`, but it was blank on the tested shipment records; do not claim carrier-confirmed proof from that field without validating its source and semantics.
 
 Inventory resource operations in preflight, smoke, probe, and assertion are GET-only. OAuth token exchange/refresh uses Zoho Accounts POST endpoints; it does not write Inventory records. Keep the debugging loop to one focused pass: copy the exact masked failure category, inspect `docs/API_NOTES.md` and `docs/LIVE_FINDINGS.md`, fix only what the observed response supports, then rerun the failing command and offline gates. Do not turn a failed or inconclusive probe into a confirmed API claim.
 
@@ -58,6 +58,7 @@ Inventory resource operations in preflight, smoke, probe, and assertion are GET-
 | OAuth `invalid_client` | Current client ID/secret do not match the token's client | Verify the Self Client credentials; do not retry token minting repeatedly. |
 | Token endpoint HTTP 429 or throttle text | Zoho rejected token generation as too frequent | Wait at least 10 minutes before another token request. |
 | Token endpoint transport failure | No HTTP response was received from the Accounts host | Check the printed transport phase and network path; do not treat it as a Zoho OAuth error response. |
+| `make zoho-token` returns a rejected exchange | The helper now prints the safe HTTP status, OAuth error name, sanitized description, Accounts host, and a matching next action; transport failures are identified separately | Follow the printed category. Never paste the grant code, client secret, or token into chat. |
 | API domain/DC mismatch | The OAuth grant came from a different Zoho data center | Recreate the client/grant in India and set `ZOHO_DC=in`. |
 | Organization not listed | Wrong ID, wrong account, or missing settings scope | Copy the Inventory `organization_id` from that personal account's Organization Profile; do not use the Zoho account-level ID. |
 | Missing scope | Consent did not include a required read scope | Revoke/recreate the Self Client grant with only the documented read scopes. |

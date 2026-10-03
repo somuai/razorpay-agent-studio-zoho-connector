@@ -1,12 +1,12 @@
-MOCK / SIMULATED
+MOCK / OFFLINE TEST OUTPUT
 Command: make test
-Date: 2026-10-02
-Commit: 4083ea0
+Date: 2026-10-03
+Base commit: c5ba511 (working tree changes included)
 
 .venv/bin/pytest --cov=src/zoho_inventory_connector --cov-report=term-missing --cov-fail-under=85 tests/
-........................................................................ [ 48%]
-........................................................................ [ 97%]
-...                                                                      [100%]
+........................................................................ [ 42%]
+........................................................................ [ 85%]
+........................                                                 [100%]
 ================================ tests coverage ================================
 ______________ coverage: platform darwin, python 3.11.15-final-0 _______________
 
@@ -14,16 +14,16 @@ Name                                                           Stmts   Miss  Cov
 --------------------------------------------------------------------------------------------
 src/zoho_inventory_connector/__init__.py                           3      0   100%
 src/zoho_inventory_connector/auth/__init__.py                      0      0   100%
-src/zoho_inventory_connector/auth/oauth.py                       126     41    67%   83, 88, 182, 218, 231-289
+src/zoho_inventory_connector/auth/oauth.py                       127     41    68%   121, 126, 208, 235, 248-306
 src/zoho_inventory_connector/auth/token_manager.py               148     11    93%   77, 82, 156-159, 172, 227, 260, 263-264
 src/zoho_inventory_connector/cache/__init__.py                     0      0   100%
 src/zoho_inventory_connector/cache/ttl_cache.py                   44      0   100%
 src/zoho_inventory_connector/client/__init__.py                    0      0   100%
-src/zoho_inventory_connector/client/client.py                    120      6    95%   69, 74, 160-161, 195, 233
-src/zoho_inventory_connector/client/errors.py                     65      1    98%   40
+src/zoho_inventory_connector/client/client.py                    129     10    92%   76, 81, 160-163, 189-190, 224, 262
+src/zoho_inventory_connector/client/errors.py                     65      0   100%
 src/zoho_inventory_connector/client/parsing.py                    22      3    86%   12, 14, 20
 src/zoho_inventory_connector/client/query_builder.py             108     11    90%   40, 43, 62, 81, 99, 115, 117, 128, 131, 154, 157
-src/zoho_inventory_connector/client/transport_diagnostics.py      35      8    77%   33, 35, 37, 44-49
+src/zoho_inventory_connector/client/transport_diagnostics.py      85     11    87%   30-31, 77, 97, 99, 101, 108-113
 src/zoho_inventory_connector/events/__init__.py                    0      0   100%
 src/zoho_inventory_connector/events/audit.py                      70      1    99%   33
 src/zoho_inventory_connector/events/emitter.py                    45      0   100%
@@ -41,9 +41,9 @@ src/zoho_inventory_connector/ratelimit/clock.py                   38      8    7
 src/zoho_inventory_connector/ratelimit/metrics.py                 51      0   100%
 src/zoho_inventory_connector/ratelimit/token_bucket.py            45      6    87%   54-59
 src/zoho_inventory_connector/services/__init__.py                  0      0   100%
-src/zoho_inventory_connector/services/dispute_service.py          93      6    94%   104-105, 116-117, 138-139
-src/zoho_inventory_connector/services/stock_service.py            89      7    92%   43, 60, 63, 88, 108-109, 160
+src/zoho_inventory_connector/services/dispute_service.py         106      6    94%   113-114, 132-133, 173-174
+src/zoho_inventory_connector/services/stock_service.py            89      6    93%   43, 60, 63, 88, 109, 160
 --------------------------------------------------------------------------------------------
-TOTAL                                                           1717    162    91%
-Required test coverage of 85% reached. Total coverage: 90.56%
-147 passed in 1.29s
+TOTAL                                                           1790    167    91%
+Required test coverage of 85% reached. Total coverage: 90.67%
+168 passed in 8.01s

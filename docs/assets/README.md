@@ -1,5 +1,5 @@
-# Author-captured live evidence
+# Author-captured evidence
 
-No live screenshots are present. Do not create or add screenshots until a real live run has completed and the output has been reviewed. The required filenames and screenshot contents are listed in the hidden evidence-slot comment in the repository README; the capture and redaction steps are in [CAPTURE_GUIDE.md](CAPTURE_GUIDE.md).
+This folder contains author-supplied mock and live screenshots. The README displays the test and demo captures, live smoke/assertion results, one successful MCP Inspector call, and the Zoho item and sales-order screens. Original HEIC files are retained; PNG copies are provided for GitHub rendering.
 
-Never fabricate, alter, or relabel a screenshot or terminal capture as live evidence. Crop or blur personal and organization identifiers before adding an author-captured file.
+The evaluation screenshot is stale and is not displayed. Separate live preflight and probe screenshots are not present. See [CAPTURE_GUIDE.md](CAPTURE_GUIDE.md) for the expected evidence and review rules. Never fabricate a screenshot or relabel mock output as live evidence.

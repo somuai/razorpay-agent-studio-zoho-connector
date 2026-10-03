@@ -1,6 +1,6 @@
 # Ten-minute reviewer tour
 
-This is a written tour. No video or recording is required. All offline examples use fictional mock data; evaluation values are **SIMULATED**. Live verification remains pending.
+This is a written tour. No video or recording is required. All offline examples use fictional mock data; evaluation values are **SIMULATED**. The read-only Zoho preflight, smoke, probe and assertions passed on 2026-10-03; no Agent Studio runtime integration or live screenshots are included.
 
 ## 1. Read the handoff (2 minutes)
 

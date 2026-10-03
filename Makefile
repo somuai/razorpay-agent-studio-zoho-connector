@@ -108,9 +108,17 @@ clean-clone-test:
 		echo "clean-clone-test passed successfully."
 
 screenshots-check:
-	@for file in tests_passing.png eval_simulated.png demo_mock.png live_preflight_masked.png live_smoke_masked.png live_probe_findings.png live_assert_masked.png mcp_inspector_live.png zoho_inventory_fictional_records.png; do \
-		if test -f "docs/assets/$$file"; then echo "PRESENT docs/assets/$$file"; else echo "MISSING docs/assets/$$file"; fi; \
+	@for stem in tests_passing eval_simulated demo_mock live_preflight_masked live_smoke_masked live_probe_findings live_assert_masked mcp_inspector_live; do \
+		if test -f "docs/assets/$$stem.png"; then echo "PRESENT docs/assets/$$stem.png"; \
+		elif test -f "docs/assets/$$stem.jpg"; then echo "PRESENT docs/assets/$$stem.jpg"; \
+		elif test -f "docs/assets/$$stem.heic"; then echo "PRESENT docs/assets/$$stem.heic (review privacy; HEIC may not render on GitHub)"; \
+		else echo "MISSING docs/assets/$$stem.(png|jpg|heic)"; fi; \
 	done
+	@if test -f "docs/assets/Zoho-ui-items.heic" && test -f "docs/assets/Zoho-ui-sales orders.heic"; then \
+		echo "PRESENT Zoho UI item and order captures (HEIC; privacy reviewed)"; \
+	elif test -f "docs/assets/zoho_inventory_fictional_records.png" || test -f "docs/assets/zoho_inventory_fictional_records.jpg"; then \
+		echo "PRESENT docs/assets/zoho_inventory_fictional_records.(png|jpg)"; \
+	else echo "MISSING Zoho Inventory fictional-record capture(s)"; fi
 
 check-secrets:
 	@echo "Auditing codebase for committed credentials, secrets, or raw auth headers..."
