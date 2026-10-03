@@ -14,7 +14,9 @@ Stock awareness can prevent an agent from treating physical stock as sellable st
 
 > **Stock signal.** Without a connector, a cart agent has no normalized Zoho availability signal. A manual UI observation in the throwaway org showed four items with available-for-sale quantities one below on-hand (18/17, 12/11, 9/8, 15/14); another showed accounting stock 30, physical stock 29 and available-for-sale 29. This was read by hand in Zoho's UI, not returned by the API; the API-field mapping is unconfirmed. [Manual UI observations](docs/LIVE_FINDINGS.md#manual-ui-observations)
 >
-> **Delivery proof.** Zoho's documented shipment record has status, carrier and tracking number, but no delivered-at timestamp. Zoho alone therefore cannot provide carrier-confirmed delivery proof for a chargeback; the long-term fix is a carrier-tracking integration. [API_NOTES.md](docs/API_NOTES.md)
+> **Delivery proof.** Live package responses included `shipment_delivered_date`, but it was blank on the three matching shipped records checked and does not establish carrier confirmation. For reliable chargeback delivery proof, the long-term fix remains a carrier-tracking integration. [Live findings](docs/LIVE_FINDINGS.md)
+>
+> **Zoho's package list ignored the sales-order filter.** The live run found cross-order packages despite a `salesorder_id` filter. The connector now exact-filters returned order IDs before using shipment evidence and fetches package detail when nested shipment data is sparse. Without that check, a dispute lookup could attach another order's tracking number. Regression coverage: `test_dispute_service_ignores_packages_for_other_orders`. [Live findings](docs/LIVE_FINDINGS.md)
 >
 > **Quota.** On the fixture's warm cache, the model supports about 6,666 / 3,333 / 1,666 decisions per day if 100% / 50% / 25% of a 1,000-call quota is available. The cold-cache fixture supports 809 / 404 / 202. These are simulated capacity estimates, not live usage. [eval output](eval/results/summary.json)
 
@@ -26,7 +28,7 @@ Stock awareness can prevent an agent from treating physical stock as sellable st
 | Wasted-nudge and discount sensitivity | Assumed out-of-stock rate: 2%: 4→0 nudges / ₹924.60→₹0; 5%: 10→0 / ₹2,389.00→₹0; 10%: 20→0 / ₹4,493.30→₹0; 27%: 54→0 / ₹13,315.40→₹0 | Baseline→aware; fixture counts and fictional INR from the fixed seed and offers. |
 | Quota, warm cache | 0.15 calls/decision: 6,666 / 3,333 / 1,666 decisions at 100% / 50% / 25% of 1,000 calls/day | Fixture cache hit rate; real rate depends on catalog size and traffic skew. |
 | Quota, cold cache | 1.235 calls/decision: 809 / 404 / 202 decisions at 100% / 50% / 25% of 1,000 calls/day | Fixture SKU mix; a distinct SKU miss requires an upstream call. |
-| Dispute evidence | 18/40 cases have all six Zoho-documented fields; 0/40 have schema-faithful delivery proof | Fictional mock only; delivery proof requires another source. |
+| Dispute evidence | 18/40 cases have all six Zoho-documented fields; 0/40 have schema-faithful delivery proof | SIMULATED. The 0/40 measure reflects the pre-live reading of the documented schema; live responses included a blank `shipment_delivered_date` on the tested shipments, not carrier-confirmed proof. |
 
 The first real measurement should be the merchant's out-of-stock rate, followed by actual cache behavior, shared Zoho quota, and the merchant's definition of sellable stock. Reproduce the simulated numbers with `make eval`; metric definitions and a controlled measurement plan are in [MEASUREMENT.md](docs/MEASUREMENT.md).
 
@@ -48,7 +50,11 @@ These are excerpts from `make demo` against the local fictional mock. Values are
 
 ## Live verification status
 
-**Offline work is verified by tests, evaluation and demo; live verification is pending.** One preflight and one smoke covering all eight tools succeeded against the throwaway Zoho org. Later runs failed during a period when the author's network connection was failing; ping, DNS and GitHub timeouts were observed. A token-cache credential-binding bug was also found and fixed. The live probe and assertion have not run, and no author-captured screenshots exist. Details are in [DONE_CHECKLIST.md](docs/DONE_CHECKLIST.md) and [LIVE_FINDINGS.md](docs/LIVE_FINDINGS.md). The successful run was on a Premium trial; its higher daily quota does not test the documented 1,000-call Free-plan quota.
+**Offline work is verified by tests, evaluation and demo; live Zoho verification passed on 2026-10-03 against a throwaway India org on a Premium trial.** Token exchange, preflight, all eight tools, the read-only probe, and 15/15 live assertions passed. The first assertion run failed and exposed a package-association bug: Zoho's package list returned rows for other orders despite a sales-order filter. Exact local filtering and sparse shipment-detail lookup fixed it; `test_dispute_service_ignores_packages_for_other_orders` covers the regression. Live responses included `shipment_delivered_date`, blank on the three matching shipped records checked. A populated Zoho-entered date would still not establish carrier confirmation. Invoice-present remains mock-only because the org's migration date blocked invoice creation; Free-plan quota behavior and Agent Studio runtime integration were not tested. Current screenshots include mock test/demo, live smoke/assertion, Zoho UI, and a successful MCP Inspector tool call; the evaluation capture needs recapture, while preflight and probe captures are still outstanding. See [DONE_CHECKLIST.md](docs/DONE_CHECKLIST.md) and [LIVE_FINDINGS.md](docs/LIVE_FINDINGS.md).
+
+### Live evidence
+
+The successful run's step outputs and scans exist under the gitignored `.live_out/20261003T083016Z/`: environment validation, host watch, token status, preflight, smoke, probe, and assertion. Preflight used 7 upstream calls; smoke used 10; the probe made 16 HTTP attempts; assertions passed 15/15 with 31 HTTP attempts. These files are local evidence and are not committed. Genuine screenshots include the test and demo mock captures, live smoke/assertion captures, Zoho UI captures, and a successful live Inspector tool call. The evaluation capture is stale; preflight and probe captures remain missing. See the [capture guide](docs/assets/CAPTURE_GUIDE.md) for the exact checklist and privacy review requirements. No screenshot content was edited.
 
 ## What the agent can and cannot do
 
@@ -127,8 +133,9 @@ Each question, the hypothesis it tests, requested data and design-changing answe
 
 ## Limitations and production path
 
-- **Live verification is incomplete.** Run preflight, smoke, probe and assertions against the personal throwaway org; capture masked evidence before changing status.
-- **Zoho alone lacks documented delivered-at proof.** Integrate the carrier or another merchant-approved authoritative tracking source.
+- **Live verification covers the tested read-only path and records only.** The Premium-trial run passed, but invoice-present, Free-plan quota, Agent Studio runtime loading, and carrier-confirmed delivery remain unverified.
+- **Zoho's delivered-date field is not carrier proof.** A live `shipment_delivered_date` field was blank on the three shipments checked; validate its source with the merchant and integrate the carrier or another approved authoritative tracking source.
+- **Zoho package listing ignored the sales-order filter in the tested org.** The connector now exact-filters returned rows, but bounded pagination or a verified server-side filter is needed before larger catalogs.
 - **Sellability is merchant-specific.** Validate availability fields, reservations, safety stock and warehouse allocation before an agent acts.
 - **Quota and cache are not shared across replicas.** Measure org-wide usage and add shared coordination if deployment needs it.
 - **Order matching depends on field mapping.** Confirm the unique Razorpay reference field and define ambiguity handling with operations.
@@ -201,16 +208,37 @@ Razorpay describes Agent Studio publicly as a platform for merchants to deploy o
 
 ## Quality
 
-Fresh offline gates on 2026-10-02: **147 tests passed; 90.56% coverage; lint clean (99 files formatted); typecheck clean (31 source files); 8 MCP tools registered.** Sources: `make test`, `make lint`, `make typecheck`, and `make spec`; captured mock outputs are in [docs/evidence](docs/evidence/).
+Fresh offline gates on 2026-10-03: **166 tests passed; 90.67% source coverage; lint clean (102 files formatted); typecheck clean (31 source files); 8 MCP tools registered.** Sources: `make test`, `make lint`, `make typecheck`, and `make spec`; captured mock outputs are in [docs/evidence](docs/evidence/).
 
 ## Screenshots
 
-No screenshots are included yet. Three expected images are **MOCK** (`tests_passing.png`, `eval_simulated.png`, `demo_mock.png`); six are **LIVE** and require later author-captured evidence (`live_preflight_masked.png`, `live_smoke_masked.png`, `live_probe_findings.png`, `live_assert_masked.png`, `mcp_inspector_live.png`, `zoho_inventory_fictional_records.png`). See the [capture guide](docs/assets/CAPTURE_GUIDE.md); `make screenshots-check` lists files present and missing.
+The images below are the uploaded, author-captured screenshots. The HEIC originals are retained in `docs/assets/`; PNG copies are included where needed for GitHub README rendering. No screenshot content was edited.
 
-<!-- Add an image only after the exact real capture exists and passes docs/assets/CAPTURE_GUIDE.md.
-MOCK slots: docs/assets/tests_passing.png; docs/assets/eval_simulated.png; docs/assets/demo_mock.png.
-LIVE slots: docs/assets/live_preflight_masked.png; docs/assets/live_smoke_masked.png; docs/assets/live_probe_findings.png; docs/assets/live_assert_masked.png; docs/assets/mcp_inspector_live.png; docs/assets/zoho_inventory_fictional_records.png.
-Do not replace a missing slot with generated or edited output. -->
+![MOCK: make test passed with coverage](docs/assets/tests_passing.jpg)
+
+![MOCK: make demo exercised stock and dispute evidence](docs/assets/demo_mock.jpg)
+
+The live run and assertion captures show the command output and its safety scan:
+
+![LIVE: live smoke output and clean scan](docs/assets/live_smoke_masked.png)
+
+![LIVE: 15 live assertions passed and clean scan](docs/assets/live_assert_masked.png)
+
+The Inspector capture shows a successful live `list_sales_orders` tool call:
+
+![LIVE: MCP Inspector tool result](docs/assets/mcp_inspector_live.png)
+
+The Zoho UI captures show the fictional inventory and sales-order records:
+
+![LIVE: Zoho Inventory item list](docs/assets/zoho_items_ui.png)
+
+![LIVE: Zoho Inventory sales-order list](docs/assets/zoho_sales_orders_ui.png)
+
+The evaluation screenshot `eval_simulated_stale.jpg` predates the corrected delivery-date explanation and is retained but not displayed. Preflight and probe screenshots remain unavailable. See the [capture guide](docs/assets/CAPTURE_GUIDE.md); `make screenshots-check` lists files present and missing.
+
+<!-- MOCK slots: tests_passing.jpg (present); eval_simulated.jpg (recapture needed; stale copy is eval_simulated_stale.jpg); demo_mock.jpg (present).
+LIVE slots: live_preflight_masked.png/.jpg/.heic (missing); live_smoke_masked.png (present); live_probe_findings.png/.jpg/.heic (missing); live_assert_masked.png (present); mcp_inspector_live.png (present); Zoho UI item/order PNG captures (present).
+Never replace a missing or stale slot with generated or edited output. -->
 
 ## Evidence files
 
