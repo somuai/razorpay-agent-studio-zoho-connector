@@ -1,4 +1,4 @@
-.PHONY: help setup lint format typecheck test mock-server spec eval demo live-preflight live-smoke live-probe live-assert live-pii-check live-token-status zoho-token net-watch live-burst check-secrets clean clean-clone-test screenshots-check
+.PHONY: help setup lint format typecheck test mock-server spec eval demo live-preflight live-smoke live-probe live-assert live-pii-check live-stock-fields live-token-status zoho-token net-watch live-burst check-secrets clean clean-clone-test screenshots-check
 
 PYTHON ?= .venv/bin/python
 UVICORN ?= .venv/bin/uvicorn
@@ -23,6 +23,7 @@ help:
 	@echo "  make live-probe     - Record read-only live API response shapes"
 	@echo "  make live-assert    - Compare live test records with local expected output"
 	@echo "  make live-pii-check - Verify default PII masking for one order (--mock is offline)"
+	@echo "  make live-stock-fields - Compare stock source fields with optional UI values (--mock is offline)"
 	@echo "  make live-token-status - Inspect local token cache metadata (no network)"
 	@echo "  make zoho-token     - Run local Zoho OAuth setup and save a private refresh token"
 	@echo "  make net-watch     - Wait for unauthenticated Zoho hosts to answer (ARGS=--mock for local mock)"
@@ -79,6 +80,9 @@ live-assert:
 live-pii-check:
 	$(PYTHON) -m examples.live_pii_check $(ARGS)
 
+live-stock-fields:
+	$(PYTHON) -m examples.live_stock_fields $(ARGS)
+
 live-token-status:
 	$(PYTHON) -m examples.live_token_status
 
@@ -102,10 +106,16 @@ clean-clone-test:
 	mkdir -p "$$FDE_CLONE_DIR/repo/docs/process" && \
 	cp docs/assets/CAPTURE_GUIDE.md "$$FDE_CLONE_DIR/repo/docs/assets/CAPTURE_GUIDE.md" && \
 	cp docs/process/CODEX_RUNSHEET.md "$$FDE_CLONE_DIR/repo/docs/process/CODEX_RUNSHEET.md" && \
-	cp docs/FIELD_NOTES.md "$$FDE_CLONE_DIR/repo/docs/FIELD_NOTES.md" && \
-	cp docs/SUBMISSION_NOTE.md "$$FDE_CLONE_DIR/repo/docs/SUBMISSION_NOTE.md" && \
-	cp examples/live_pii_check.py "$$FDE_CLONE_DIR/repo/examples/live_pii_check.py" && \
-	cp tests/test_live_pii_check.py "$$FDE_CLONE_DIR/repo/tests/test_live_pii_check.py" && \
+		cp docs/FIELD_NOTES.md "$$FDE_CLONE_DIR/repo/docs/FIELD_NOTES.md" && \
+		cp docs/SUBMISSION_NOTE.md "$$FDE_CLONE_DIR/repo/docs/SUBMISSION_NOTE.md" && \
+		cp docs/RETROSPECTIVE.md "$$FDE_CLONE_DIR/repo/docs/RETROSPECTIVE.md" && \
+		cp docs/RISKS.md "$$FDE_CLONE_DIR/repo/docs/RISKS.md" && \
+		cp docs/TRUST_PROFILE.md "$$FDE_CLONE_DIR/repo/docs/TRUST_PROFILE.md" && \
+		cp examples/live_pii_check.py "$$FDE_CLONE_DIR/repo/examples/live_pii_check.py" && \
+		cp tests/test_live_pii_check.py "$$FDE_CLONE_DIR/repo/tests/test_live_pii_check.py" && \
+		cp examples/live_stock_fields.py "$$FDE_CLONE_DIR/repo/examples/live_stock_fields.py" && \
+		cp tests/test_live_stock_fields.py "$$FDE_CLONE_DIR/repo/tests/test_live_stock_fields.py" && \
+		cp live_ui_values.example.yaml "$$FDE_CLONE_DIR/repo/live_ui_values.example.yaml" && \
 	mkdir -p "$$FDE_CLONE_DIR/repo/docs/evidence" "$$FDE_CLONE_DIR/repo/docs/process" && cp docs/evidence/*.txt "$$FDE_CLONE_DIR/repo/docs/evidence/" && \
 	cd "$$FDE_CLONE_DIR/repo" && \
 	make setup && \

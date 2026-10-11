@@ -4,9 +4,9 @@ This checklist records commands actually run in this workspace. Offline evaluati
 
 ## Quality gates
 
-- [x] `make lint` — `ruff check .`: all checks passed; `ruff format --check .`: 102 files already formatted.
+- [x] `make lint` — `ruff check .`: all checks passed; `ruff format --check .`: 106 files already formatted (latest stock-field check run).
 - [x] `make typecheck` — mypy: success, no issues in 31 source files.
-- [x] `make test` — 168 passed; total source coverage 90.67% (threshold 85%). Includes offline regressions for cross-order package filtering, sparse shipment field aliases, and OAuth diagnostics.
+- [x] `make test` — 174 passed; total source coverage 90.67% (threshold 85%). Latest run on 2026-10-03 includes the stock-field report tests and is the current README/field-notes/submission count.
 - [x] `make spec` — generated and verified `mcp/tool_spec.json`; 8 registered tools.
 - [x] `make eval` twice — all three result JSON files compared byte-for-byte and identical. Results are **SIMULATED**, M1 is a mechanism check, and the sensitivity sweep is deterministic. Quota table: warm fixture 0.15 calls/decision → 6,666 / 3,333 / 1,666 decisions at 100/50/25% allocation; cold-cache fixture mix 1.235 calls/decision → 809 / 404 / 202. M2 separates Zoho-documented evidence fields (18/40 in the fixture), schema-faithful delivery proof (0/40; requires carrier integration), and mock-only `delivery_date` presence (18/40).
 - [x] `make demo` — fictional mock API and MCP stdio server completed in-stock, low-stock, out-of-stock, evidence, and forced 429/backoff scenarios. Metrics summary: 6 tool events, 3 retries, 1 throttled tool call, 1 tool error.
@@ -227,3 +227,30 @@ This checklist records commands actually run in this workspace. Offline evaluati
 - [x] `make check-secrets` and `git diff --check` — passed.
 - [x] `UV_OFFLINE=1 make clean-clone-test` — passed using locally cached dependencies; the clone completed eval, demo, and spec verification.
 - [x] No network or live Zoho calls were made; no screenshots were created or edited; no commit was made.
+
+## 2026-10-03: stock-field evidence audit
+
+- [x] `make test` — at that earlier audit snapshot, 170 passed with 90.67% total source coverage; superseded by the later 174-test gate below and recorded in the current README, field notes, and submission note.
+- [x] Stock source code review — `stock_service.py:137-146` reads `actual_available_stock`, falling back only to `locations[0].location_actual_available_stock` when exactly one location is present. SKU resolution uses `/items`; ID resolution uses `/items/{id}`.
+- [x] Saved live evidence review — `LIVE_FINDINGS.md` reports list keys `stock_on_hand`, `available_for_sale`, `available_stock`, `actual_available_stock`; item detail additionally reports `committed_stock`, `actual_committed_stock`, `available_for_sale_stock`, and `actual_available_for_sale_stock`. Detail locations array was absent.
+- [x] Source field behind live assertions — **INCONCLUSIVE**. Stored assertion output has pass/fail statuses but not `source_stock_field` or source quantities; the probe stores field shapes/types but not row values. Thus the exact live source and whether it maps to UI available-for-sale or on-hand cannot be asserted from the saved evidence. README, limitations, live findings, field notes, and submission note now state this gap and recommend comparing `actual_available_for_sale_stock` against same-item UI values before any code change.
+- [x] Release tag check — local `v0.1.0` resolves to `a97a7b9fb844f76b8d0f1f855e493ada426f4a16`; local `HEAD` is `b3ea6f2c3d5dbaa86c3ad075d80f48e794bd874a`. Tag was not moved.
+- [x] Added README disclosure that the project was built with Codex under the written PRD, with the author directing design, reviewing code, and running live verification.
+- [x] No network or live Zoho calls were made for this audit; no code or screenshots were changed; no commit or tag movement was performed.
+
+## 2026-10-03: live stock-field comparison helper
+
+- [x] Added `make live-stock-fields`; default mode is read-only and targets the ten fictional live SKUs `KHG-001` through `KHG-010`. It reads one catalog page, fetches each item detail at most once, seeds the response into the connector cache, and calls the production `get_stock_availability` path to report its selected field/fallback and status.
+- [x] Added `live_ui_values.example.yaml`; the local `live_ui_values.yaml` is gitignored. Per-SKU output compares every scalar response key containing `stock` or `available` against the hand-recorded UI values, plus an identifier scan that masks digits and email-shaped text in any finding.
+- [x] `make live-stock-fields ARGS=--mock` — passed offline for the ten first seeded mock SKUs; output showed `actual_available_stock` as the service source and ended `Identifier scan: SAFE`.
+- [x] `tests/test_live_stock_fields.py` — 4 tests passed; verifies mock mode, exactly ten item-detail HTTP requests, UI match/inconclusive behavior, and safe identifier-scan diagnostics.
+- [x] `make lint` — passed; Ruff checks clean, 106 files formatted.
+- [x] `make typecheck` — passed; mypy checked 31 source files.
+- [x] `make test` — 174 passed; 90.67% total source coverage (threshold 85%).
+- [x] `make spec` — generated and verified the 8-tool MCP specification.
+- [x] `make eval` twice — stdout and all three JSON outputs byte-identical; stdout SHA-256 `512e7c4a4a2a30caf18fc24c55ce16345e54548b129219dae38a15911a26d986`.
+- [x] `make demo` — passed against the fictional mock.
+- [x] `make check-secrets` — secrets audit clean.
+- [x] `make clean-clone-test` — passed; clean clone setup, eval, demo, and spec verification completed with the new helper/example/test files copied into the test checkout.
+- [x] `make screenshots-check` — ran; existing screenshot files were listed. Evaluation, live preflight/probe, and live PII captures remain absent.
+- [x] No live Zoho call or other network call was made; no screenshot was created or edited; no commit was made.

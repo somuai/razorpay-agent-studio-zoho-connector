@@ -50,6 +50,14 @@ Run these in order from the repository root:
 
 For an authorized live run, first create or select one fictional customer record with a fake email and phone, and one sales order for that customer. Set `ZOHO_PII_TEST_ORDER_REFERENCE`, `ZOHO_PII_TEST_EMAIL`, and `ZOHO_PII_TEST_PHONE` in the local environment, then run `make live-pii-check` from the author's terminal. The helper calls the two order tools with `include_pii=false`, emits only masked customer fields, and exits nonzero if the raw values or any email-shaped/8+ digit text appears. Never enter real contact details. The live command was not run as part of this offline change.
 
+## Stock-field and UI comparison
+
+`make live-stock-fields ARGS=--mock` runs the report against the local fictional API and makes no network call. It is covered by `tests/test_live_stock_fields.py`. The mock run confirms the output format and the connector's chosen source field; it does not verify Zoho's live schema.
+
+For a live, read-only comparison, copy `live_ui_values.example.yaml` to the gitignored `live_ui_values.yaml` and enter only the stock-on-hand and available-for-sale numbers you observed for each of the ten fictional `KHG-001` through `KHG-010` items in the Zoho UI. Then run `make live-stock-fields` from the terminal with the normal live environment loaded. The helper reads one catalog page and fetches each matching item detail at most once, then reuses that detail response through the production `get_stock_availability` tool path. It prints all returned scalar fields whose names contain `stock` or `available`, the selected field/fallback, resulting status, and per-row UI comparisons. It never prints record, organization, or customer identifiers. The final identifier scan must say `SAFE`; if it reports a problem, it masks digits and email-shaped text in its diagnostic line. The summary names the API fields matching the two UI quantities and whether the connector's selected quantity matches UI available-for-sale across every recorded row. Missing UI entries are reported as inconclusive, not as mismatches.
+
+This comparison is a diagnostic, not a claim that any similarly named Zoho field is universally sellable. Record only the values you read by hand; do not alter them to make the connector pass.
+
 Inventory resource operations in preflight, smoke, probe, and assertion are GET-only. OAuth token exchange/refresh uses Zoho Accounts POST endpoints; it does not write Inventory records. Keep the debugging loop to one focused pass: copy the exact masked failure category, inspect `docs/API_NOTES.md` and `docs/LIVE_FINDINGS.md`, fix only what the observed response supports, then rerun the failing command and offline gates. Do not turn a failed or inconclusive probe into a confirmed API claim.
 
 ## Failure guide

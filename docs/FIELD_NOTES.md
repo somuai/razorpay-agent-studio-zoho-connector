@@ -45,8 +45,8 @@ A dated engineering log of the decisions and evidence in this repository. Dates 
 
 | Measure | Result | Source |
 |---|---:|---|
-| Tests | 168 passed | `make test` run on 2026-10-03 in the current project tree |
-| Source coverage | 90.67% | `make test` run on 2026-10-03 in the current project tree |
+| Tests | 174 passed | `make test` run on 2026-10-03 after adding the stock-field report tests |
+| Source coverage | 90.67% | Same `make test` run; source coverage threshold is 85% |
 | Lint | Passed; 102 files formatted | `make lint` |
 | Typecheck | Passed; 31 source files | `make typecheck` |
 | MCP tools | 8 registered and spec verified | `make spec` |
@@ -65,3 +65,5 @@ The offline evidence text files begin with `MOCK / SIMULATED`, the command, date
 ## What is not verified
 
 The read-only Zoho path passed preflight, all eight tools in smoke, probe, and all 15 assertion rows on 2026-10-03. The first assertion run failed and exposed the cross-order package bug; exact filtering and detail fallback fixed it, and the rerun passed. The manual UI stock quantities are still not mapped to API fields. Invoice-present remains mock-only because the throwaway org's migration date blocked invoice creation. A `shipment_delivered_date` field appeared in live responses but was blank on the three checked shipments; whether a populated value is staff-entered or carrier-sourced is not verified. The Premium-trial run did not test free-plan quota behavior or Agent Studio runtime loading. Author-supplied screenshots now cover tests, demo, smoke, assertions, one live Inspector call, and the Zoho UI; the evaluation capture is stale, and preflight/probe screenshots are unavailable.
+
+The 2026-10-03 stock audit confirms the service code's source priority but cannot recover the exact source used per live assertion: stored assertion output lacks `source_stock_field` and quantities. The probe observed candidate availability keys and no detail `locations`; the UI-to-API mapping and whether `actual_available_stock` can overstate post-commit availability remain inconclusive.

@@ -20,4 +20,12 @@ Mocks and simulations do not establish merchant impact. The read-only Zoho path 
 | The connector is single-organization and single-process. | It is not ready for merchant tenancy, credential isolation, or coordinated quotas. | Add per-tenant credential lifecycle, isolation, shared limiter/cache, operational monitoring and security review before multi-tenant use. |
 | No Agent Studio runtime integration is included. | Public information does not specify private connector registration or credential routing. | Confirm the internal integration contract with an authorized owner; keep this repo's claim to MCP compatibility. |
 
-The tested read-only Zoho path is live-verified for this throwaway org only. Merchant-specific stock/matching rules, invoice-present behavior, carrier-confirmed delivery, Free-plan quota, and Agent Studio runtime integration remain unverified. Treat every evaluation result as **SIMULATED**.
+The tested read-only Zoho path is live-verified for this throwaway org only. Treat every evaluation result as **SIMULATED**.
+
+## Stock source field
+
+The service currently classifies stock from `actual_available_stock`, falling back to `locations[0].location_actual_available_stock` ([stock service](../src/zoho_inventory_connector/services/stock_service.py#L137)). The saved live probe recorded item-list keys `stock_on_hand`, `available_for_sale`, `available_stock`, and `actual_available_stock`; item detail included `stock_on_hand`, `available_stock`, `actual_available_stock`, `committed_stock`, `actual_committed_stock`, `available_for_sale_stock`, and `actual_available_for_sale_stock`. No `locations` array was recorded in item detail. The saved live assertions captured status outcomes, not the projection's `source_stock_field` or source quantities. Therefore they do not establish which source key drove each result or whether `actual_available_stock` equals Zoho UI available-for-sale after committed orders. Until measured, this can overstate or understate the merchant's sellable quantity.
+
+**Recommendation, not yet implemented:** compare `actual_available_stock` and `actual_available_for_sale_stock` for the same test SKUs against Zoho's stock-on-hand, committed, and available-for-sale UI columns. If `actual_available_for_sale_stock` is the verified sellable measure, change the primary source to that field and retain the current unknown-on-missing behavior. Extend `live-assert` to check `source_stock_field` and observed quantity/status boundaries, so a passing category cannot hide a wrong source field.
+
+Other live verification limits: invoice-present behavior, a populated delivered date, Free-plan quota behavior, and Agent Studio runtime integration remain unverified.

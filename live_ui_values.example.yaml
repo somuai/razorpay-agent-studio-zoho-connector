@@ -1,0 +1,15 @@
+{
+  "note": "Copy to live_ui_values.yaml and enter only stock values read from the Zoho UI. Use null until observed.",
+  "items": [
+    {"sku": "KHG-001", "on_hand": null, "available_for_sale": null},
+    {"sku": "KHG-002", "on_hand": null, "available_for_sale": null},
+    {"sku": "KHG-003", "on_hand": null, "available_for_sale": null},
+    {"sku": "KHG-004", "on_hand": null, "available_for_sale": null},
+    {"sku": "KHG-005", "on_hand": null, "available_for_sale": null},
+    {"sku": "KHG-006", "on_hand": null, "available_for_sale": null},
+    {"sku": "KHG-007", "on_hand": null, "available_for_sale": null},
+    {"sku": "KHG-008", "on_hand": null, "available_for_sale": null},
+    {"sku": "KHG-009", "on_hand": null, "available_for_sale": null},
+    {"sku": "KHG-010", "on_hand": null, "available_for_sale": null}
+  ]
+}

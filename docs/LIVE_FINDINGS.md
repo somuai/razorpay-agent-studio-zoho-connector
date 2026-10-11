@@ -54,6 +54,17 @@ GET only; upstream HTTP attempts: 16 across 16 logical GET probes.
 
 The final `make live-burst` completed preflight, smoke, probe, and assertion with exit code 0. Every output passed the built-in privacy scan (`SAFE TO SCREENSHOT`). The assertion matched all 10 SKU rows and all 5 order rows. This establishes the read-only connector path against the throwaway org; it does not establish Agent Studio runtime integration or carrier-confirmed delivery.
 
+## Stock-field mapping follow-up — 2026-10-03
+
+The saved probe recorded the following response-shape keys (types only):
+
+- Item list: `stock_on_hand`, `available_for_sale`, `available_stock`, and `actual_available_stock` (all number fields).
+- Item detail: `stock_on_hand`, `available_stock`, `actual_available_stock`, `committed_stock`, `actual_committed_stock`, `available_for_sale_stock`, and `actual_available_for_sale_stock` (all number fields); `locations` was absent.
+
+The implementation in `src/zoho_inventory_connector/services/stock_service.py:137-146` first reads `actual_available_stock`; only if it is null does it read `locations[0].location_actual_available_stock` when exactly one location is present. SKU lookup searches `/items`, while ID lookup reads `/items/{id}`. The live status assertions passed for all 10 SKUs, which means the stock service obtained enough usable quantity data to classify those cases. However, the saved `live-assert.txt` records statuses only; it does not preserve `source_stock_field` or quantities. The probe records field names and types, not non-null status or values. Therefore the exact key that supplied each live classification and whether it matches UI available-for-sale rather than on-hand are **INCONCLUSIVE**. The package/item shape is consistent with the primary list field being available, but that is not proof of the returned non-null source per row.
+
+The risk is unresolved: using physical/on-hand quantity as sellable could overstate availability after commitments; the evidence here does not prove that `actual_available_stock` has that behavior. Before changing code, compare the fields against UI values for the same SKUs. If `actual_available_for_sale_stock` is confirmed to track the merchant's sellable quantity, recommend making it primary. Extend live assertions to record/assert `source_stock_field` and the mapped quantities, not status alone. No implementation change was made during this offline audit.
+
 The first assertion run found a connector bug: `GET /packages?salesorder_id=…` returned four package rows for each of five order lookups. Exact local comparison found one matching row for each of the first four test orders and no match for the fifth. The connector had trusted the first row and could attach another order's package. It now filters returned package rows by exact `salesorder_id`; an offline regression test covers cross-order rows.
 
 The live sales-order detail also returned sparse nested shipment objects. A package-detail read for the same package exposed the shipment fields, including `shipping_date`, `shipment_delivered_date`, `status`, `carrier`, and `tracking_number`. The connector now fetches detail when the nested object lacks populated evidence fields and normalizes `shipping_date` as the shipment date. The `shipment_delivered_date` field was present but blank on the three matching shipped records checked. It remains unavailable in the evidence output for those orders.

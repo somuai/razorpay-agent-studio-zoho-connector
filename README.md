@@ -2,9 +2,11 @@
 
 A read-only MCP connector that tells Razorpay Agent Studio's cart and dispute agents whether an item is sellable and what fulfillment evidence exists in Zoho Inventory.
 
+Built with Codex, an AI coding assistant, under the written PRD in `AGENTS.md`; the author directed the design, reviewed the code, and ran the live verification.
+
 ## Status at a glance
 
-> **Offline:** 170 tests passed; 90.67% source coverage (`make test`).
+> **Offline:** 174 tests passed; 90.67% source coverage (`make test`, latest run 2026-10-03).
 > **Live Zoho (2026-10-03):** all 8 tools exercised; 15/15 assertions passed after finding and fixing cross-order package association.
 > **Not verified:** stock-field/UI mapping, invoice-present path, populated delivered date, Free-plan quota behavior, and Agent Studio runtime integration.
 
@@ -31,7 +33,7 @@ Stock awareness can prevent an agent from treating physical stock as sellable st
 
 ## What I found
 
-> **Stock signal.** Without a connector, a cart agent has no normalized Zoho availability signal. `get_stock_availability` reads `actual_available_stock`, falling back to `locations[0].location_actual_available_stock` ([implementation](src/zoho_inventory_connector/services/stock_service.py#L137)). The probe observed `stock_on_hand` and `available_for_sale` keys in item-list responses, while the detail-shape finding recorded `stock_on_hand` and no locations. **INCONCLUSIVE:** the live probe did not map the UI's available-for-sale and on-hand quantities to specific API fields. The manual UI comparison showed four items with available-for-sale one below on-hand, and one with accounting stock 30, physical stock 29 and available-for-sale 29. [Probe and manual UI evidence](docs/LIVE_FINDINGS.md#manual-ui-observations)
+> **Stock signal.** `get_stock_availability` uses `actual_available_stock`, falling back to `locations[0].location_actual_available_stock` ([implementation](src/zoho_inventory_connector/services/stock_service.py#L137)). The live list shape contained `stock_on_hand`, `available_for_sale`, and `actual_available_stock`; item detail also contained `actual_available_for_sale_stock`, and no locations array was recorded. The saved assertions retained statuses, not `source_stock_field` or quantities, so **INCONCLUSIVE:** we cannot identify which key supplied the passing live results or map it to Zoho UI sellable stock. Until verified, `actual_available_stock` could differ from availability after committed orders; compare it with `actual_available_for_sale_stock` and the UI before switching, then assert the source field as well as each expected status. [Probe and manual UI evidence](docs/LIVE_FINDINGS.md#stock-field-mapping)
 >
 > **Delivery proof.** Live package responses included `shipment_delivered_date`, but it was blank on the three matching shipped records checked and does not establish carrier confirmation. For reliable chargeback delivery proof, the long-term fix remains a carrier-tracking integration. [Live findings](docs/LIVE_FINDINGS.md)
 >
@@ -182,6 +184,9 @@ More detail and the evidence required for each fix are in [LIMITATIONS.md](docs/
 - [Merchant summary](docs/MERCHANT_SUMMARY.md)
 - [Merchant summary technical appendix](docs/MERCHANT_SUMMARY_TECHNICAL.md)
 - [Project plan](docs/PLAN.md)
+- [Retrospective](docs/RETROSPECTIVE.md)
+- [Risk register](docs/RISKS.md)
+- [Proposed trust profile](docs/TRUST_PROFILE.md)
 - [Tool schemas and examples](docs/TOOLS.md)
 - [Reviewer tour](docs/WALKTHROUGH.md)
 - [Screenshot capture guide](docs/assets/CAPTURE_GUIDE.md)
@@ -218,7 +223,7 @@ Razorpay describes Agent Studio publicly as a platform for merchants to deploy o
 
 ## Quality
 
-Fresh offline gates on 2026-10-03: **168 tests passed; 90.67% source coverage; lint clean (102 files formatted); typecheck clean (31 source files); 8 MCP tools registered.** Sources: `make test`, `make lint`, `make typecheck`, and `make spec`; captured mock outputs are in [docs/evidence](docs/evidence/).
+Fresh offline gates on 2026-10-03: **174 tests passed; 90.67% source coverage; lint clean (106 files formatted); typecheck clean (31 source files); 8 MCP tools registered.** Sources: `make test`, `make lint`, `make typecheck`, and `make spec`; captured mock outputs are in [docs/evidence](docs/evidence/).
 
 ## Screenshots
 
